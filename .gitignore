@@ -1,0 +1,108 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Virtual Environments
+venv/
+venv*/
+env/
+ENV/
+venv38/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# PyTorch Models and Checkpoints
+*.pth
+*.pt
+*.ckpt
+checkpoints/
+trained_models/
+
+# Large Data Files
+# Features
+features/
+features_nonbi/
+features_cnn/
+visual_features/
+
+# Videos
+drive/
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Images and Frames
+video_frames/
+feature_images/
+feature_visualizations/
+reconstructed_frames/
+*.jpg
+*.jpeg
+*.png
+*.gif
+
+# CSV and Data Files (keep templates/configs, ignore results)
+inference_eval_results.csv
+*_results.csv
+*_output.csv
+
+# Logs
+*.log
+logs/
+tensorboard/
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+
+# Training Artifacts
+runs/
+experiments/
+wandb/
+
+# Compressed Files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Installation Files
+*.deb
+*.rpm
+*.exe
+*.msi
+
+# Keep these files
+!requirements.txt
+!README.md
+!*.py
+!config.py
+
+# Exception: Keep small sample data if needed
+# !data/sample_*.csv
