@@ -190,7 +190,8 @@ def main():
 
     # Load vocabulary (same as training - must match training vocab size)
     print("\n📚 Loading vocabulary...")
-    df_sent = load_sentences(config.train_csv_path, limit=None)  # Load all for full vocab
+    # IMPORTANT: Must use same limit as training (400) to match vocabulary size
+    df_sent = load_sentences(config.train_csv_path, limit=400)
     encodings, reverse_encodings = build_word_dict(df_sent["sign_language"])
     print(f"   Vocabulary size: {len(encodings)}")
     print('Encodings sample:', list(encodings.items())[:10])

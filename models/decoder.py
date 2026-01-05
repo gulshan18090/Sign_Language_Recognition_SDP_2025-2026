@@ -11,7 +11,8 @@ from config import config
 
 class AttnDecoderRNN(nn.Module):
     def __init__(self, hidden_size, output_size, device,
-                 dropout_p=0.1, max_length=config.max_frames, biDirectional=False, encoder_hidden_size=None):
+                 dropout_p=0.1, max_length=config.max_frames, biDirectional=False, encoder_hidden_size=None,
+                 attn_dropout_p=0.1, attn_temperature=1.0):
         super().__init__()
 
         self.hidden_size = hidden_size
@@ -21,9 +22,20 @@ class AttnDecoderRNN(nn.Module):
         self.D = 2 if biDirectional else 1
         # Encoder hidden size (for projection if needed)
         self.encoder_hidden_size = encoder_hidden_size
+        
+        # Attention temperature - higher = softer attention (prevents collapse)
+        self.attn_temperature = attn_temperature
 
         self.embedding = nn.Embedding(output_size, hidden_size)
+        
+        # Improved attention: use separate key/query projections
+        self.attn_query = nn.Linear(hidden_size * 2, hidden_size)
+        self.attn_key = nn.Linear(encoder_hidden_size or hidden_size, hidden_size)
+        self.attn_energy = nn.Linear(hidden_size, 1)
+        
+        # Legacy attention for backward compatibility
         self.attn = nn.Linear(hidden_size*2, max_length)
+        
         # Project encoder outputs to match decoder hidden_size for concatenation
         if encoder_hidden_size is not None and encoder_hidden_size != hidden_size:
             self.encoder_proj = nn.Linear(encoder_hidden_size, hidden_size)
@@ -31,6 +43,9 @@ class AttnDecoderRNN(nn.Module):
             self.encoder_proj = None
         self.attn_combine = nn.Linear(hidden_size*2, hidden_size)
         self.dropout = nn.Dropout(dropout_p)
+        
+        # Attention dropout - regularizes attention weights to prevent collapse
+        self.attn_dropout = nn.Dropout(attn_dropout_p)
 
         self.rnn = nn.LSTM(
             hidden_size, hidden_size,
@@ -59,10 +74,28 @@ class AttnDecoderRNN(nn.Module):
                 )
                 encoder_outputs = torch.cat([encoder_outputs, pad], dim=1)
 
-        attn_weights = F.softmax(
-            self.attn(torch.cat((embedded[:, 0, :], hidden[0][0]), 1)),
-            dim=1
-        )
+        # Improved attention mechanism with temperature scaling
+        # Query: combination of embedded input and decoder hidden state
+        query = self.attn_query(torch.cat((embedded[:, 0, :], hidden[0][0]), 1))  # (B, hidden_size)
+        
+        # Key: project encoder outputs
+        keys = self.attn_key(encoder_outputs)  # (B, T, hidden_size)
+        
+        # Energy: query-key dot product with learnable transform
+        query_expanded = query.unsqueeze(1).expand(-1, keys.size(1), -1)  # (B, T, hidden_size)
+        energy = self.attn_energy(torch.tanh(query_expanded + keys)).squeeze(-1)  # (B, T)
+        
+        # Apply temperature scaling (higher temp = softer distribution)
+        energy = energy / self.attn_temperature
+        
+        # Softmax to get attention weights
+        attn_weights = F.softmax(energy, dim=1)
+        
+        # Apply attention dropout during training (prevents collapse)
+        attn_weights = self.attn_dropout(attn_weights)
+        
+        # Re-normalize after dropout
+        attn_weights = attn_weights / (attn_weights.sum(dim=1, keepdim=True) + 1e-9)
 
         attn_applied = torch.bmm(attn_weights.unsqueeze(1), encoder_outputs)  # (B, 1, encoder_hidden_size)
         

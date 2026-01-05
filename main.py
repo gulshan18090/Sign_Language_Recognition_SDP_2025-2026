@@ -70,7 +70,18 @@ def main():
     encoder = EncoderRNN(input_size, hidden_size, device=config.device, biDirectional=True, use_cnn=False).to(config.device)
     # Encoder output is 256*2=512 for bidirectional
     encoder_output_size = hidden_size * 2  # 512
-    decoder = AttnDecoderRNN(encoder_output_size, len(encodings), device=config.device, encoder_hidden_size=encoder_output_size).to(config.device)
+    
+    # IMPROVED: Added attention dropout and temperature scaling to prevent attention collapse
+    # attn_dropout_p=0.1: Regularizes attention weights during training
+    # attn_temperature=2.0: Softens attention distribution (higher = more spread out)
+    decoder = AttnDecoderRNN(
+        encoder_output_size, 
+        len(encodings), 
+        device=config.device, 
+        encoder_hidden_size=encoder_output_size,
+        attn_dropout_p=0.1,
+        attn_temperature=2.0
+    ).to(config.device)
 
     # Train the model with early stopping
     # epochs=20: Maximum epochs (will stop early if no improvement)

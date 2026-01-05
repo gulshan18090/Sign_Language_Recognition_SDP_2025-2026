@@ -139,12 +139,11 @@ def pad_collate_features(batch):
             pad = torch.zeros((pad_len, f.shape[1]), dtype=f.dtype, device=f.device)
             f = torch.cat([f, pad], dim=0)
         elif seq_len > target_length:
-            # Truncate to target_length (take middle frames or evenly sample)
-            # Option 1: Take first target_length frames
-            f = f[:target_length]
-            # Option 2: Take evenly spaced frames (uncomment if preferred)
-            # indices = torch.linspace(0, seq_len - 1, target_length).long()
-            # f = f[indices]
+            # IMPROVED: Use uniform sampling instead of truncation
+            # This preserves temporal coverage across the entire signing sequence
+            # instead of losing late frames which may contain important signs
+            indices = torch.linspace(0, seq_len - 1, target_length).long()
+            f = f[indices]
         padded_f.append(f)
     features = torch.stack(padded_f)
 

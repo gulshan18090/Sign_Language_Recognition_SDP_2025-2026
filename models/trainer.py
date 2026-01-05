@@ -115,7 +115,10 @@ def trainIters(df, encoder, decoder, encodings,
                     x, y,
                     encoder, decoder,
                     enc_opt, dec_opt,
-                    criterion, encodings
+                    criterion, encodings,
+                    teacher_forcing_ratio=0.5,  # Start with 50% teacher forcing
+                    epoch=epoch,
+                    total_epochs=epochs
                 )
                 epoch_train_losses.append(loss)
             except Exception as e:

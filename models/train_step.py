@@ -4,14 +4,30 @@ import absl.logging
 absl.logging.set_verbosity(absl.logging.ERROR)  # Only show ERROR logs, hide INFO/DEBUG
 import torch
 import torch.nn.functional as F
+import random
 from config import config
 
 
 def train_step(input_tensor, target_tensor,
                encoder, decoder,
                enc_opt, dec_opt,
-               criterion, encodings, max_grad_norm=5.0):
-
+               criterion, encodings, max_grad_norm=5.0,
+               teacher_forcing_ratio=0.5, epoch=0, total_epochs=20):
+    """
+    Training step with scheduled sampling.
+    
+    Args:
+        teacher_forcing_ratio: Base probability of using teacher forcing (0.0-1.0)
+                              Set to 1.0 for pure teacher forcing (old behavior)
+                              Set to 0.5 for 50% scheduled sampling
+        epoch: Current epoch number (used for curriculum learning)
+        total_epochs: Total epochs (used for curriculum learning)
+    
+    Scheduled Sampling: Gradually reduces teacher forcing as training progresses.
+    This forces the model to learn from its own predictions, preventing it from
+    ignoring video features.
+    """
+    
     enc_opt.zero_grad()
     dec_opt.zero_grad()
 
@@ -34,9 +50,17 @@ def train_step(input_tensor, target_tensor,
     decoder_target = target_tensor[:, 1:max_len-1, :].squeeze(-1)
 
     loss = 0
+    
+    # Scheduled sampling: reduce teacher forcing as training progresses
+    # Start with high teacher forcing, gradually decrease
+    scheduled_ratio = teacher_forcing_ratio * (1 - epoch / total_epochs)
+    
+    # Get SOS token for starting
+    current_input = decoder_input[:, 0].unsqueeze(1)  # Start with SOS
+    
     for t in range(decoder_target.size(1)):
-        output, decoder_hidden, _ = decoder(
-            decoder_input[:, t].unsqueeze(1), decoder_hidden, encoder_output
+        output, decoder_hidden, attn_weights = decoder(
+            current_input, decoder_hidden, encoder_output
         )
 
         # Fix: Use class indices directly for CrossEntropyLoss (no one-hot encoding)
@@ -44,6 +68,18 @@ def train_step(input_tensor, target_tensor,
         
         # CrossEntropyLoss expects (N, C) for output and (N,) for target
         loss += criterion(output, tgt)
+        
+        # Scheduled sampling: decide whether to use teacher forcing or model prediction
+        use_teacher_forcing = random.random() < scheduled_ratio
+        
+        if use_teacher_forcing and t + 1 < decoder_target.size(1):
+            # Teacher forcing: use ground truth as next input
+            current_input = decoder_input[:, t + 1].unsqueeze(1)
+        else:
+            # Use model's prediction as next input
+            # This forces the model to actually learn from video features
+            predicted = output.argmax(dim=1)
+            current_input = predicted.unsqueeze(1)
 
     # Backward pass
     loss.backward()
