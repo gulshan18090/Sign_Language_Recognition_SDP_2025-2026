@@ -1,0 +1,39 @@
+You are a professional ML Engineer specialized in video captioning. Build a clean, modular, production-ready pipeline for Azerbaijani Sign Language recognition — translating pre-extracted video features into gloss sequences.
+
+TASK: Build a transformer-based sequence-to-sequence recognition, which accepts feature vectors from .pt file and generates sequence of words.
+
+ARCHITECTURE:
+.pt features (64, 512)
+      ↓
+Transformer Encoder      ← temporal reasoning over frame feature sequence
+      ↓
+Transformer Decoder      ← autoregressively generates gloss tokens
+      ↓
+sentence             ← e.g. "men mekteb getmek"
+
+TOKENIZER / VOCABULARY
+- Build a custom word-level vocabulary from sign_language column of CSV
+- Vocabulary is fixed and closed — only words seen in 750 CSV rows
+- Special tokens: <pad>, <sos>, <eos>, <unk>
+- No pretrained tokenizer needed (no mT5, no BERT, no multilingual model)
+- Vocabulary size will be small — estimated ~500 unique gloss words
+---
+
+DATA — CSV
+- Path: drive/sentences_all.csv
+- Separator: ; | No header | Columns: idd, sentence, sign_language
+- 750 rows | 750 unique sentences | No nulls
+- sign_language: gloss sequence — only target used, sentence column ignored
+- In total 16,803 samples in the dataset (all the features for the given sentences)
+
+DATA — MAPPING PIPELINE
+
+The data for the given row in the csv files are located under the corresponding folder: drive/features_slr/<idd>/
+Each <idd> folder contains .pt files that correspond to the input features.
+
+Build a modular structure where the configuration, data loader, model and so on are separately organized.
+Consider small amount of samples and build a robust model. 
+Build an inference module that accepts a pt file and returns a string.
+
+Also share your opinion on the feasibility of the model with the given data and requirements. How do you evaluate the accuracy of such a model?
+

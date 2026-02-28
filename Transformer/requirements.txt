@@ -1,0 +1,22 @@
+# Deep learning
+torch>=2.0.0
+torchvision>=0.15.0
+
+# ViT backbone
+timm>=0.9.0
+
+# Video reading
+opencv-python>=4.8.0
+
+# Data
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Metrics
+nltk>=3.8.0
+
+# Logging
+tensorboard>=2.13.0
+
+# Utilities
+tqdm>=4.65.0
