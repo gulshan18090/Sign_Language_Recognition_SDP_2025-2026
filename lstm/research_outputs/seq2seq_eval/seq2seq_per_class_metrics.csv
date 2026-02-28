@@ -1,0 +1,23 @@
+label,total,top1_acc,top3_acc,top5_acc
+siz ad nə ?,41,78.04878048780488,92.6829268292683,92.6829268292683
+hamı salam,22,0.0,0.0,0.0
+siz futbol oynamaq ?,22,0.0,0.0,0.0
+salam,21,0.0,71.42857142857143,80.95238095238095
+sabah xeyir,21,0.0,0.0,0.0
+təşəkkür etmək,21,0.0,0.0,0.0
+mənim anam yazmaq-oxumaq bilmir,21,9.523809523809524,80.95238095238095,90.47619047619048
+mən yazmaq bilmir,21,52.38095238095238,57.142857142857146,57.142857142857146
+siz məni görmək ?,21,0.0,0.0,0.0
+axşam xeyir,21,80.95238095238095,80.95238095238095,80.95238095238095
+mən nərimanov metro yanında yaşamaq,21,0.0,0.0,0.0
+başqa hansı sənəd lazım ?,21,0.0,0.0,0.0
+bura sonra hara getmək ?,21,0.0,0.0,0.0
+biz həmişə bazar gün futbol oynamaq,21,14.285714285714286,14.285714285714286,14.285714285714286
+kondisoner söndurmək bilmək siz ?,21,0.0,0.0,0.0
+o yazmaq-oxumaq bilmir,21,0.0,0.0,0.0
+mən oxumaq bilmir,21,0.0,9.523809523809524,9.523809523809524
+siz neçə yaş var ?,10,0.0,0.0,0.0
+bu gün hava çox gözəl,8,0.0,0.0,0.0
+mən indi a-d-a universitet,5,0.0,0.0,0.0
+mən orda dünən olmaq,4,0.0,0.0,0.0
+i̇şıq yandırmaq olar ?,1,0.0,0.0,0.0

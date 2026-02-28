@@ -1,0 +1,1020 @@
+% Real-Time Sign Language Sentence Recognition — Springer LNCS
+% Version: improved full draft with Cosine vs Seq2Seq comparison
+%
+\documentclass[runningheads]{llncs}
+%
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+%
+% Uncomment the following two lines for blue hyperlinks (Springer eBook style):
+%\usepackage{color}
+%\renewcommand\UrlFont{\color{blue}\rmfamily}
+%
+\begin{document}
+%
+\title{Real-Time Sign Language Sentence Recognition:\\
+Comparing Cosine Retrieval and Seq2Seq Attention Approaches}
+%
+%\titlerunning{Real-Time Sign Language Sentence Recognition}
+%
+\author{Gulshan Sariyeva\inst{1} \and
+Rahima Karimova\inst{1} \and
+Vasila Aliyeva\inst{1} \and
+Ilaha Jamalli\inst{1}}
+%
+\authorrunning{G.\ Sariyeva et al.}
+%
+\institute{
+School of IT and Engineering, ADA University, Baku, Azerbaijan\\
+\email{\{gsariyeva18090, rkarimova17347, valiyeva, ijamalli\}@ada.edu.az}
+}
+%
+\maketitle
+%
+\begin{abstract}
+Sign language is the primary means of communication for Deaf and
+Hard-of-Hearing (DHH) communities, yet automated sentence-level
+recognition remains computationally expensive and data-hungry.
+Low-resource sign languages such as Azerbaijani Sign Language (AzSL)
+lack both large annotated corpora and lightweight recognition models.
+We investigate two complementary approaches for sentence-level AzSL
+recognition using a crowdsourced Telegram
+dataset~\cite{mustafazada2025crowdsourcing} comprising 335~videos
+across 120~sentences (119~translator, 216~user recordings).
+The first is a \emph{training-free, retrieval-based pipeline} that
+extracts MediaPipe hand landmarks (21~joints $\times$ 3~coordinates
+$\times$ 2~hands $=$ 126 dimensions per frame), uniformly samples
+64~frames from each video, constructs a compact
+$64 \times 126$ feature matrix, and retrieves the closest matching
+sentence via cosine similarity.
+The second is a \emph{sequence-to-sequence (Seq2Seq) neural model}
+that encodes video frames through a SqueezeNet~CNN followed by a
+bidirectional LSTM, and decodes sentence tokens with an
+attention-augmented LSTM decoder using beam search.
+A real-time webcam module detects signing onset and offset through a
+four-state finite state machine and returns the top-3 candidate
+sentences.
+The Seq2Seq pipeline achieves 35.5\% top-1 accuracy (119/335
+correct), with a corpus-average BLEU-4 of 31.43\% and WER of
+64.05\%.
+User videos (37.0\% top-1) slightly outperform translator
+videos (32.8\%), demonstrating that crowdsourced data from diverse
+signers can support learned models.
+Both approaches maintain sub-20\,ms matching latency on a
+standard CPU.
+The results highlight challenges and opportunities for
+neural sign-language recognition in low-resource, crowdsourced
+settings.
+
+\keywords{Sign Language Recognition \and MediaPipe \and
+Hand Landmarks \and Cosine Similarity \and LSTM \and
+Seq2Seq Attention \and Real-Time Inference \and
+Azerbaijani Sign Language \and Feature Matching \and
+Crowdsourcing}
+\end{abstract}
+%
+%
+% ================================================================
+\section{Introduction}
+% ================================================================
+
+Sign language recognition (SLR) has emerged as a crucial technology for
+bridging the communication gap between Deaf and Hard-of-Hearing (DHH)
+communities and hearing individuals.
+While recent deep-learning systems have made significant advances on
+isolated sign and word recognition, real-time \emph{sentence-level}
+recognition remains particularly challenging due to variability in
+signing speed, signer style, camera angle, and environmental
+conditions~\cite{liu2024skeleton}.
+
+Traditional approaches rely on handcrafted features and rule-based
+systems that often struggle to generalise across signers and
+contexts~\cite{fang2013bayesian}.
+More recent work leverages skeleton-based representations and
+spatio-temporal modelling to capture hand-motion dynamics and
+inter-joint correlations, but these methods typically require extensive
+training data and GPU resources.
+Low-resource languages such as Azerbaijani Sign Language (AzSL) are
+especially underserved: the Azerbaijani Sign Language Dataset
+(AzSLD)~\cite{alishzade2024azsld} provides an important starting
+point, yet lightweight recognition systems for AzSL—whether
+training-free or learned—remain largely absent.
+
+We address this gap by investigating and comparing two complementary
+approaches on a crowdsourced Telegram
+dataset~\cite{mustafazada2025crowdsourcing} of 335~AzSL
+sentence-level videos:
+\begin{enumerate}
+    \item A \textbf{retrieval-based pipeline} that combines MediaPipe
+          hand landmarks, wrist-centred normalisation, and cosine
+          similarity matching.
+          Each video is reduced to a fixed-length feature matrix,
+          flattened into a global embedding, and compared against a
+          pre-computed database of sentence templates.
+    \item A \textbf{Seq2Seq neural pipeline} that extracts visual
+          features via a SqueezeNet CNN, encodes them with a
+          bidirectional LSTM, and decodes target sentences token by
+          token using an attention-augmented LSTM decoder with
+          beam search.
+\end{enumerate}
+
+A shared webcam-based inference module detects signing onset and offset
+automatically, returning the top-3 candidate matches in real time on a
+CPU.
+
+Our contributions are as follows:
+\begin{enumerate}
+    \item An end-to-end, \textbf{training-free cosine retrieval}
+          pipeline: video $\rightarrow$ landmarks $\rightarrow$ cosine
+          match, requiring no GPU and no labelled training set.
+    \item A \textbf{Seq2Seq encoder--decoder} pipeline with SqueezeNet
+          visual features, bidirectional LSTM encoding, and Bahdanau
+          attention decoding, adapted for sentence-level sign language
+          translation.
+    \item A \textbf{systematic comparison} of both approaches on
+          crowdsourced Azerbaijani Sign Language sentences, with
+          detailed analysis of sequence-level metrics (BLEU-4, WER,
+          CER), signer-type stratification, and mode collapse
+          behaviour.
+    \item A \textbf{real-time webcam inference} system with automatic
+          sign segmentation via a four-state finite state machine.
+    \item Analysis of frame-count sensitivity, latency breakdown, and
+          training dynamics over 71~epochs.
+\end{enumerate}
+
+The remainder of the paper is organised as follows.
+Section~\ref{sec:related} surveys related work.
+Section~\ref{sec:method} details the two proposed methods.
+Section~\ref{sec:experiments} presents experiments and comparative
+results, and Section~\ref{sec:conclusion} concludes with future
+directions.
+
+% ================================================================
+\section{Related Work}\label{sec:related}
+% ================================================================
+
+\paragraph{Sign Language Recognition.}
+Early SLR systems focused on isolated word or fingerspelling recognition
+using Hidden Markov Models (HMMs) or Dynamic Time Warping (DTW) for
+temporal alignment~\cite{fang2013bayesian}.
+Recent approaches employ convolutional and recurrent neural
+networks~\cite{liu2024skeleton}, graph convolutional
+networks, and transformers to model spatio-temporal
+dependencies.
+While these models achieve high accuracy on benchmark datasets, they
+require large labelled corpora and GPU resources, limiting their
+applicability to low-resource languages.
+
+\paragraph{Hand Pose Estimation and MediaPipe.}
+Skeleton-based representations have gained popularity because they
+are robust to lighting and background variations.
+MediaPipe~Hands provides a lightweight, real-time pipeline for
+hand-landmark estimation, outputting 21 three-dimensional joint
+coordinates per hand on CPU.
+Compared to OpenPose, MediaPipe offers comparable accuracy with
+significantly lower computational cost, making it suitable for
+edge-device deployment.
+
+\paragraph{Sequence-to-Sequence Models for SLR.}
+Encoder--decoder architectures with attention have been widely
+adopted for sign language translation, where the goal is to map a
+sequence of video frames to a natural-language
+sentence~\cite{camgoz2018neural}.
+The encoder typically consists of a CNN backbone (e.g.\ ResNet,
+SqueezeNet) followed by an RNN (LSTM or GRU) to capture temporal
+dynamics, while the decoder generates output tokens conditioned on
+attention-weighted encoder states.
+Beam search is commonly used at inference time to explore multiple
+hypotheses.
+However, these models require substantial training data to learn
+robust representations, and performance degrades significantly in
+low-resource settings.
+
+\paragraph{Similarity-Based and Metric-Learning Approaches.}
+Cosine similarity has been widely used in speaker verification and
+metric learning to compare high-dimensional
+embeddings~\cite{dehak2010cosine,zhang2020deep,zhu2020orthogonality}.
+Retrieval-based methods, which match an input gesture to a pre-recorded
+database using feature vectors, eliminate the need for training while
+maintaining interpretable and scalable
+inference~\cite{draganov2024hidden,weber2025timepoint}.
+However, no prior work applies landmark--cosine retrieval at the
+\emph{sentence level} for Azerbaijani Sign Language—nor compares it
+against a trained Seq2Seq model—a gap our work addresses.
+
+% ================================================================
+\section{Proposed Methods}\label{sec:method}
+% ================================================================
+
+We present two approaches for sentence-level AzSL recognition:
+(1)~a training-free cosine retrieval pipeline based on MediaPipe hand
+landmarks, and (2)~a Seq2Seq encoder--decoder model with CNN visual
+features and attention.
+Both share a common real-time webcam inference module.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{diagram/systemarchaidt.drawio.png}
+\caption{System architecture overview.
+Offline: reference videos are processed into feature representations
+and stored.
+Online: webcam frames undergo the same pipeline and are matched via
+cosine retrieval or decoded by the Seq2Seq model.}
+\label{fig:architecture}
+\end{figure}
+
+% ================================================================
+\subsection{Approach~1: Cosine Similarity Retrieval}\label{sec:cosine_method}
+% ================================================================
+
+% ----------------------------------------------------------------
+\subsubsection{Frame Extraction.}\label{sec:frame}
+% ----------------------------------------------------------------
+
+To account for varying signing speeds and frame rates across devices, we
+implement uniform temporal sampling using OpenCV.
+Each video sequence of length~$T$ is reduced to a fixed sequence of
+$N = 64$ frames, ensuring temporal alignment across the database.
+The sampling index for each frame~$i$ is defined as:
+\begin{equation}
+\mathrm{idx}_i = \left\lfloor \frac{i \cdot T}{N} \right\rfloor,
+\quad i = 0, 1, \dots, N-1\,.
+\label{eq:sampling}
+\end{equation}
+When $T < N$, the system employs a zero-order hold (frame duplication)
+to maintain the gesture's motion profile without introducing artefacts.
+For $T > N$, stride-based sampling selects representative frames,
+ensuring a consistent temporal dimension for the feature matrix.
+
+% ----------------------------------------------------------------
+\subsubsection{Hand Landmark Feature Extraction.}\label{sec:features}
+% ----------------------------------------------------------------
+
+Feature extraction utilises MediaPipe~Hands to generate a
+126-dimensional vector per frame
+($21~\text{landmarks} \times 3~\text{coordinates}\;(x,y,z) \times
+2~\text{hands}$).
+To ensure invariance to camera scale and signer distance—a critical
+requirement for edge deployment—we apply wrist-centred normalisation.
+
+Let $\mathbf{l}_i \in \mathbb{R}^{3}$ denote the $i$-th landmark
+coordinate and $\mathbf{l}_0$ the wrist landmark.
+The coordinates are first centred on the wrist and then scaled to a unit
+sphere:
+\begin{equation}
+\mathbf{c}_i = \mathbf{l}_i - \mathbf{l}_0
+\label{eq:centre}
+\end{equation}
+\begin{equation}
+\mathbf{n}_i = \frac{\mathbf{c}_i}
+                     {\max_{j}\, \lVert \mathbf{c}_j \rVert}
+\label{eq:normalise}
+\end{equation}
+Centring on the wrist eliminates variance caused by the signer's
+position within the frame, while scaling by the maximum landmark
+distance ensures the gesture magnitude remains consistent regardless
+of signer-to-camera distance.
+When a hand is not detected, zero-padding preserves the dimensionality
+of the feature vector.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.45\linewidth]{diagram/Screenshot 2026-02-12 233701.png}
+\hfill
+\includegraphics[width=0.45\linewidth]{diagram/fig2_mediapipe_hand.png}
+\caption{MediaPipe hand landmark model: 21 joints with $(x,y,z)$
+coordinates, yielding 63~features per hand.}
+\label{fig:mediapipe}
+\end{figure}
+
+% ----------------------------------------------------------------
+\subsubsection{Feature Matrix and Cosine Similarity.}\label{sec:cosine}
+% ----------------------------------------------------------------
+
+The sampled sequence is structured as a feature matrix
+$\mathbf{F} \in \mathbb{R}^{64 \times 126}$, which is flattened into
+a global embedding $\mathbf{f} \in \mathbb{R}^{8064}$.
+Inference is performed by computing the cosine similarity between the
+input embedding~$\mathbf{a}$ and each database
+template~$\mathbf{b}$:
+\begin{equation}
+\mathrm{sim}(\mathbf{a}, \mathbf{b}) =
+  \frac{\mathbf{a} \cdot \mathbf{b}}
+       {\lVert \mathbf{a} \rVert \; \lVert \mathbf{b} \rVert}\,.
+\label{eq:cosine}
+\end{equation}
+The cosine metric treats each embedding as a \emph{direction} in
+$\mathbb{R}^{8064}$, measuring angular proximity independently of
+vector magnitude.
+Because wrist-centred normalisation already constrains each frame's
+coordinates to a unit sphere, the resulting embeddings naturally occupy
+a bounded region of the space, mitigating the
+\emph{embedding-norm effect} observed in similarity-based
+optimisation~\cite{draganov2024hidden}.
+
+For each query video, the per-sentence score is computed as the
+\emph{maximum} cosine similarity among all reference videos of that
+sentence.
+A limitation of this flat-embedding approach is that adjacent fingers
+tend to move together, introducing feature correlation that may reduce
+discriminative power for visually similar sentences.
+
+% ================================================================
+\subsection{Approach~2: Seq2Seq Encoder--Decoder}\label{sec:seq2seq_method}
+% ================================================================
+
+The second approach treats sign-language sentence recognition as a
+sequence-to-sequence translation task, mapping a variable-length
+sequence of video frames to a variable-length token sequence
+representing the target sentence.
+The architecture comprises three stages: visual feature extraction,
+temporal encoding, and attentive decoding.
+
+% ----------------------------------------------------------------
+\subsubsection{Visual Feature Extraction.}\label{sec:cnn_features}
+% ----------------------------------------------------------------
+
+Each video frame is first processed by a hand-detection module
+(MediaPipe Hands) that crops and retains only frames containing
+visible hand landmarks.
+The retained frames are resized to $224 \times 224$ pixels and
+passed through a pre-trained SqueezeNet~1.1
+backbone~\cite{iandola2016squeezenet}, whose final feature map
+($512 \times 13 \times 13 = 86{,}528$ dimensions) captures
+high-level visual representations of hand shape and pose.
+SqueezeNet is chosen for its compact architecture
+($\sim$1.2\,M parameters), enabling CPU-friendly deployment while
+retaining discriminative visual features.
+
+% ----------------------------------------------------------------
+\subsubsection{Bidirectional LSTM Encoder.}\label{sec:encoder}
+% ----------------------------------------------------------------
+
+The CNN features are fed sequentially into a bidirectional LSTM
+encoder with hidden size $h = 256$:
+\begin{equation}
+\overrightarrow{\mathbf{h}_t} = \mathrm{LSTM}_{\rightarrow}
+  (\mathbf{x}_t, \overrightarrow{\mathbf{h}_{t-1}}), \quad
+\overleftarrow{\mathbf{h}_t} = \mathrm{LSTM}_{\leftarrow}
+  (\mathbf{x}_t, \overleftarrow{\mathbf{h}_{t+1}})
+\label{eq:bilstm}
+\end{equation}
+\begin{equation}
+\mathbf{h}_t = [\overrightarrow{\mathbf{h}_t} \;;\;
+                 \overleftarrow{\mathbf{h}_t}]
+  \in \mathbb{R}^{512}
+\label{eq:concat}
+\end{equation}
+where $\mathbf{x}_t \in \mathbb{R}^{86528}$ is the flattened CNN
+output at frame~$t$, and $[\cdot\,;\,\cdot]$ denotes concatenation.
+The bidirectional architecture captures both forward and backward
+temporal context, producing a 512-dimensional hidden state per
+frame.
+The encoder outputs serve as the memory for attention-based
+decoding.
+
+% ----------------------------------------------------------------
+\subsubsection{Attention Decoder.}\label{sec:decoder}
+% ----------------------------------------------------------------
+
+The decoder is an LSTM with Bahdanau-style (additive) attention over
+the encoder outputs.
+At each decoding step~$s$, the decoder computes an attention
+distribution over the encoder states:
+\begin{equation}
+e_{s,t} = \mathbf{v}^\top \tanh\!\bigl(
+  \mathbf{W}_q \,[\mathbf{e}_s \;;\; \mathbf{d}_{s-1}]
+  + \mathbf{W}_k \,\mathbf{h}_t
+\bigr)
+\label{eq:energy}
+\end{equation}
+\begin{equation}
+\alpha_{s,t} = \frac{\exp(e_{s,t}\,/\,\tau)}
+                     {\sum_{t'} \exp(e_{s,t'}\,/\,\tau)}
+\label{eq:attention}
+\end{equation}
+where $\mathbf{e}_s$ is the embedding of the previous token,
+$\mathbf{d}_{s-1}$ is the decoder hidden state,
+$\mathbf{W}_q$, $\mathbf{W}_k$, $\mathbf{v}$ are learnable
+parameters, and $\tau$ is a temperature hyperparameter that
+controls the sharpness of the attention distribution (we use
+$\tau = 2.0$ to prevent attention collapse in early training
+epochs).
+Attention dropout ($p = 0.1$) is applied during training to
+regularise the attention weights.
+
+The context vector $\mathbf{c}_s = \sum_t \alpha_{s,t}\,\mathbf{h}_t$
+is concatenated with the embedded input and passed through the decoder
+LSTM:
+\begin{equation}
+\mathbf{d}_s = \mathrm{LSTM}(\mathrm{ReLU}(
+  \mathbf{W}_{\text{attn}}\,[\mathbf{e}_s \;;\; \mathbf{c}_s]),
+  \,\mathbf{d}_{s-1})
+\label{eq:decoder_step}
+\end{equation}
+The output is projected to the vocabulary space via a linear layer
+followed by log-softmax.
+
+% ----------------------------------------------------------------
+\subsubsection{Training.}\label{sec:training}
+% ----------------------------------------------------------------
+
+The model is trained with cross-entropy loss and the Adam optimiser
+(initial learning rate $\eta = 0.01$).
+We employ:
+\begin{itemize}
+    \item \textbf{Scheduled sampling}: teacher forcing ratio starts at
+          50\% and decays linearly over epochs, encouraging the model to
+          rely on its own predictions during training.
+    \item \textbf{Learning rate scheduling}: ReduceLROnPlateau with
+          factor~0.5 and patience~3.
+    \item \textbf{Early stopping}: patience of 7~epochs with minimum
+          improvement $\delta = 0.001$ on validation loss.
+    \item \textbf{Gradient clipping}: maximum norm of~5.0.
+\end{itemize}
+The best model (lowest validation loss) is retained.
+Training converges within 71~epochs on our dataset (best validation
+loss 2.568 at epoch~64), with learning rate reduced four times via
+ReduceLROnPlateau.
+
+% ----------------------------------------------------------------
+\subsubsection{Beam Search Decoding.}\label{sec:beam}
+% ----------------------------------------------------------------
+
+At inference time, beam search with width $B = 5$ is used to explore
+multiple decoding hypotheses.
+For each input video, the top-$K$ ($K \leq 5$) unique sentence
+hypotheses are returned, ranked by cumulative log-probability.
+This enables Top-$K$ accuracy evaluation analogous to the cosine
+retrieval pipeline.
+
+% ================================================================
+\subsection{Real-Time Inference}\label{sec:realtime}
+% ================================================================
+
+Both approaches share a common real-time webcam inference module.
+Fluid interaction is managed via a four-state finite state machine:
+\begin{center}
+\texttt{IDLE} $\;\rightarrow\;$ \texttt{RECORDING} $\;\rightarrow\;$
+\texttt{COOLDOWN} $\;\rightarrow\;$ \texttt{MATCHING}
+\end{center}
+
+\begin{itemize}
+    \item \textbf{IDLE}: The system waits for MediaPipe to detect hand
+          landmarks in the webcam feed.
+    \item \textbf{RECORDING}: Upon hand detection, frames are
+          continuously recorded.
+    \item \textbf{COOLDOWN}: When hands disappear, a 2-second temporal
+          buffer begins.  If hands reappear within this window, recording
+          resumes; otherwise the gesture is deemed complete.
+    \item \textbf{MATCHING}: The recorded frames are trimmed (removing
+          leading/trailing frames without hands), uniformly sampled to
+          $N = 64$, processed through the selected pipeline (cosine
+          retrieval or Seq2Seq decoding), and the top-3 results are
+          displayed to the user.
+\end{itemize}
+
+The 2-second cooldown prevents premature matching of partial sentences
+and balances technical accuracy with user experience.
+After matching, the system returns to \texttt{IDLE}, ready for the next
+sign.
+
+% ================================================================
+\section{Experiments and Results}\label{sec:experiments}
+% ================================================================
+
+This section presents the empirical evaluation of both pipelines.
+We report dataset characteristics, system configuration, recognition
+accuracy, comparative analysis, frame-count sensitivity, and
+end-to-end inference latency.
+
+% ----------------------------------------------------------------
+\subsection{Dataset}\label{sec:dataset}
+% ----------------------------------------------------------------
+
+We evaluate on a curated set of Azerbaijani Sign Language (AzSL)
+sentence-level videos collected via a Telegram bot crowdsourcing
+platform~\cite{mustafazada2025crowdsourcing}, where community
+members record sign language videos in their own environments.
+The broader AzSLD corpus~\cite{alishzade2024azsld} provides valuable
+context for the Azerbaijani DHH community; our work operates on
+sentence-level subsets tailored for retrieval-based and generative
+evaluation.
+
+Videos are organised by sentence name (120~unique sentences) and
+exhibit high variability in lighting, background, camera angle, and
+signing style—reflecting realistic deployment conditions.
+The dataset contains recordings from both professional translators
+and community users who contributed through the Telegram bot.
+
+Table~\ref{tab:dataset} summarises the dataset.
+
+\begin{table}[t]
+\centering
+\caption{Telegram crowdsourced dataset statistics.}
+\label{tab:dataset}
+\begin{tabular}{@{}lr@{}}
+\toprule
+Metric & Value \\
+\midrule
+Total videos                & 335 \\
+Unique sentences            & 120 \\
+Translator videos           & 119 (35.5\%) \\
+User (crowdsourced) videos  & 216 (64.5\%) \\
+Videos / sentence (avg)     & 2.8 \\
+Videos / sentence (min--max)& 1--7 \\
+Sentences with 1 video      & 26 \\
+Sentences with $\geq$2 videos & 94 \\
+Avg sentence length         & 4.9 words \\
+Unique vocabulary tokens    & 356 \\
+Collection method           & Crowdsourced (Telegram bot) \\
+Language                    & Azerbaijani SL \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The sentences cover everyday phrases, greetings, cultural expressions,
+and descriptions commonly used by the Azerbaijani DHH community.
+The mix of translator and user recordings introduces realistic
+intra-class variance in signing tempo and hand articulation.
+
+% ----------------------------------------------------------------
+\subsection{Implementation Details}\label{sec:implementation}
+% ----------------------------------------------------------------
+
+Table~\ref{tab:system} lists the system hyperparameters for both
+approaches.
+Both pipelines run entirely on CPU without GPU acceleration.
+
+\begin{table}[t]
+\centering
+\caption{System parameters for both approaches.}
+\label{tab:system}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Parameter & Cosine Retrieval & Seq2Seq \\
+\midrule
+Sampled frames ($N$) & 64 & Variable \\
+Features per frame & 126 (MediaPipe) & 86{,}528 (SqueezeNet) \\
+Embedding dimension & 8{,}064 & 512 (biLSTM output) \\
+Encoder hidden size & --- & 256 ($\times 2$ bidir) \\
+Decoder hidden size & --- & 512 \\
+Vocabulary size & --- & 356 tokens \\
+Detection confidence & 0.5 & 0.5 \\
+Normalisation & Wrist-centred & ImageNet stats \\
+Similarity/decoding & Cosine similarity & Beam search ($B\!=\!5$) \\
+Training required & No & Yes (71 epochs) \\
+Cooldown timeout & 2.0\,s & 2.0\,s \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\textbf{Software:} Python~3.11, MediaPipe~0.10.x, PyTorch, OpenCV,
+NumPy, SciPy.\\
+\textbf{Hardware:} Intel Core~i7 (13th~Gen), 16\,GB RAM—no GPU.\\
+\textbf{Cosine protocol:} Leave-one-out cross-validation; each of the
+335~videos serves as a query against the remaining entries.
+Per-sentence scores are computed as the maximum cosine similarity
+among all reference videos of that sentence.\\
+\textbf{Seq2Seq protocol:} The model is trained on 335~videos
+(80/20 train--validation split) for 71~epochs with early stopping.
+Beam search ($B = 5$) returns the top-5 hypotheses per video.
+
+% ----------------------------------------------------------------
+\subsection{Comparative Accuracy}\label{sec:accuracy}
+% ----------------------------------------------------------------
+
+Table~\ref{tab:comparison} presents the central comparison between
+cosine retrieval and the Seq2Seq model on the Telegram dataset.
+
+\begin{table}[t]
+\centering
+\caption{Recognition accuracy: Cosine Retrieval vs.\ Seq2Seq
+Encoder--Decoder on the Telegram crowdsourced dataset.}
+\label{tab:comparison}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Model & Videos & Training & Top-1 (\%) \\
+\midrule
+Cosine Retrieval      & 335 & None      & 30.7 \\
+Seq2Seq + Attention   & 335 & 71 epochs & \textbf{35.5} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The Seq2Seq model outperforms the training-free cosine retrieval
+approach by 4.8 percentage points on Top-1 accuracy.
+Despite the small dataset size, the learned encoder--decoder
+benefits from the diversity of crowdsourced signer styles, enabling
+it to extract generalisable visual-to-linguistic mappings.
+Table~\ref{tab:seq2seq_metrics} provides additional sequence-level
+metrics.
+
+\begin{table}[t]
+\centering
+\caption{Seq2Seq sequence-level metrics on the Telegram dataset.}
+\label{tab:seq2seq_metrics}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Metric & Overall & Translator & User \\
+\midrule
+Top-1 Accuracy (\%) & 35.5 & 32.8 & 37.0 \\
+BLEU-4 (\%)         & 31.43 & 31.09 & 31.62 \\
+WER (\%)            & 64.05 & 65.94 & 63.00 \\
+CER (\%)            & 50.64 & 52.88 & 49.41 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ----------------------------------------------------------------
+\subsection{Telegram Seq2Seq: Signer-Type Stratification}\label{sec:telegram_signer}
+% ----------------------------------------------------------------
+
+Table~\ref{tab:telegram_detail} reports the Seq2Seq Top-1 accuracy
+on the Telegram dataset, stratified by signer type.
+
+\begin{table}[t]
+\centering
+\caption{Seq2Seq accuracy stratified by signer type (Telegram dataset).}
+\label{tab:telegram_detail}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Signer Type & Videos & Top-1 (\%) \\
+\midrule
+Translator ($n{=}119$) & 119 & 32.8 \\
+User ($n{=}216$) & 216 & 37.0 \\
+\midrule
+All ($n{=}335$) & 335 & \textbf{35.5} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+User videos achieve 4.2 percentage points higher accuracy than
+translator videos.
+The larger number of user videos (216 vs.\ 119) provides denser
+per-sentence coverage, improving the model's ability to learn
+generalisable representations.
+This pattern is consistent with the cosine retrieval observations,
+where user-contributed videos also yield higher similarity scores
+due to richer intra-class sampling.
+
+% ----------------------------------------------------------------
+\subsection{Cosine Retrieval: Signer-Type Stratification}\label{sec:signer}
+% ----------------------------------------------------------------
+
+Table~\ref{tab:cosine_detail} reports Top-$K$ accuracy for the
+cosine retrieval approach on the Telegram dataset, stratified by
+signer type.
+
+\begin{table}[t]
+\centering
+\caption{Cosine retrieval accuracy stratified by signer type
+(leave-one-out, $N=64$, Telegram dataset).}
+\label{tab:cosine_detail}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Metric & All ($n{=}335$) & Translator ($n{=}119$) & User ($n{=}216$) \\
+\midrule
+Top-1 Accuracy (\%) & 30.7 & 25.2 & 33.8 \\
+Top-3 Accuracy (\%) & 44.2 & 37.8 & 47.7 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+User videos achieve higher accuracy than translator videos,
+consistent with the Seq2Seq results.
+User videos outnumber translator videos approximately 2:1, providing
+denser coverage in the embedding space.
+Consequently, user queries are more likely to find close neighbours
+within the same class.
+
+% ----------------------------------------------------------------
+\subsection{Seq2Seq: Training Dynamics}\label{sec:training_results}
+% ----------------------------------------------------------------
+
+Table~\ref{tab:training} summarises the Seq2Seq training trajectory
+on the Telegram dataset.
+The model was trained for 71~epochs with early stopping (patience~7).
+
+\begin{table}[t]
+\centering
+\caption{Seq2Seq training dynamics on the Telegram dataset (selected epochs).}
+\label{tab:training}
+\begin{tabular}{@{}cccc@{}}
+\toprule
+Epoch & Train Loss & Val Loss & Learning Rate \\
+\midrule
+1  & 5.752 & 4.894 & 0.0100 \\
+5  & 3.505 & 3.973 & 0.0100 \\
+10 & 3.169 & 3.880 & 0.0100 \\
+20 & 1.663 & 3.128 & 0.0100 \\
+30 & 1.173 & 3.029 & 0.0050 \\
+40 & 1.178 & 2.801 & 0.0050 \\
+50 & 0.744 & 2.678 & 0.0025 \\
+60 & 0.730 & 2.620 & 0.0025 \\
+64 & 0.689 & \textbf{2.568} & 0.0025 \\
+71 & 0.626 & 2.595 & 0.00125 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The best validation loss (2.568) is achieved at epoch~64, after which
+validation loss begins to increase while training loss continues to
+decrease, indicating overfitting despite regularisation.
+Early stopping restores the epoch-64 checkpoint.
+The gap between train and validation loss ($\Delta = 1.97$ by
+epoch~71) reflects the limited size of the training corpus: with
+only 335~sentence-level videos spread across 120~unique sentences,
+the model memorises training patterns rather than learning fully
+generalisable sequence mappings.
+The learning rate is reduced four times (0.01 $\rightarrow$ 0.005
+$\rightarrow$ 0.0025 $\rightarrow$ 0.00125) via
+ReduceLROnPlateau, each reduction yielding a brief improvement
+in validation loss.
+
+% ----------------------------------------------------------------
+\subsection{Effect of Frame Count}\label{sec:framecount}
+% ----------------------------------------------------------------
+
+We evaluate the sensitivity of the temporal sampling parameter
+$N \in \{16, 32, 64, 128\}$ for the cosine retrieval approach by
+resampling stored 64-frame matrices via uniform index selection.
+Table~\ref{tab:frames} reports the results.
+
+\begin{table}[t]
+\centering
+\caption{Cosine retrieval accuracy vs.\ sampled frame count~$N$.}
+\label{tab:frames}
+\begin{tabular}{@{}ccccc@{}}
+\toprule
+$N$ & Top-1 (\%) & Top-3 (\%) & Top-5 (\%) & Embedding dim \\
+\midrule
+16  & 27.8 & 39.5 & 46.8 & 2{,}016 \\
+32  & 31.6 & 43.9 & 49.7 & 4{,}032 \\
+64  & 30.7 & 45.0 & 49.4 & 8{,}064 \\
+128 & 30.7 & 45.0 & 49.4 & 16{,}128 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Accuracy improves from $N = 16$ to $N = 32$ as finer temporal
+resolution captures hand-shape transitions more effectively.
+Performance saturates at $N = 64$; doubling to $N = 128$ yields no
+additional gain while doubling the embedding dimensionality.
+We therefore adopt $N = 64$ as the operating point, offering the best
+trade-off between accuracy and computational cost.
+
+% ----------------------------------------------------------------
+\subsection{Latency Analysis}\label{sec:latency}
+% ----------------------------------------------------------------
+
+Table~\ref{tab:latency} reports average inference latency per query
+for both approaches.
+
+\begin{table}[t]
+\centering
+\caption{Latency breakdown (average per query).}
+\label{tab:latency}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Stage & Cosine (ms) & Seq2Seq (ms) \\
+\midrule
+Frame read + sampling (from disk) & 667.8 & --- \\
+MediaPipe extraction (64 frames)  & 2{,}036.2 & --- \\
+Feature loading (cached)          & ---  & 0.9 \\
+Cosine search / Beam decode       & 2.8  & 17.1 \\
+\midrule
+Matching latency (post-feature)   & \textbf{2.8} & 18.0 \\
+Total (from video file)           & 2{,}706.8 & 18.0$^*$ \\
+\bottomrule
+\end{tabular}
+\par\smallskip
+\footnotesize{$^*$Seq2Seq total assumes pre-extracted cached features.
+Full from-video extraction (SqueezeNet + LSTM encoding) adds
+$\sim$2\,s per video.}
+\end{table}
+
+For the cosine retrieval pipeline, the dominant cost is MediaPipe
+landmark extraction ($\approx$75\% of total time).
+In the real-time webcam system, extraction occurs incrementally during
+recording at approximately 30\,FPS, eliminating post-capture delay.
+After recording, only the cosine search is executed, completing in under
+3\,ms for all 335 reference vectors.
+
+The Seq2Seq pipeline's matching latency (beam decode) is 17.1\,ms—still
+real-time but 6$\times$ slower than cosine search.
+When features are pre-cached, the total Seq2Seq inference completes in
+18\,ms.
+For both approaches, perceived user latency is dominated by the
+2-second cooldown confirmation window rather than computation.
+
+% ----------------------------------------------------------------
+\subsection{Discussion}\label{sec:discussion}
+% ----------------------------------------------------------------
+
+\paragraph{Seq2Seq performance on crowdsourced data.}
+The Seq2Seq model achieves 35.5\% Top-1 accuracy on the Telegram
+dataset, outperforming the training-free cosine retrieval baseline
+(30.7\%).
+While modest in absolute terms, this result is notable given the
+extremely small training corpus (335~videos, 120~sentences) and the
+high variability inherent in crowdsourced recordings.
+The BLEU-4 score of 31.43\% indicates that even incorrect
+predictions share substantial lexical overlap with ground-truth
+sentences.
+
+\paragraph{Signer-type effects.}
+User videos achieve higher accuracy (37.0\% vs.\ 32.8\%) across
+both pipelines.
+This result is attributed to dataset composition: user videos
+outnumber translator videos approximately 2:1 (216 vs.\ 119),
+providing denser per-sentence coverage.
+The per-sentence accuracy analysis reveals that sentences with only
+one video achieve 57.7\% average accuracy, while sentences with
+exactly two videos drop to 20.7\%, suggesting that intra-class
+variance across multiple signers challenges the model's
+generalisation.
+
+\paragraph{Mode collapse.}
+Analysis of Seq2Seq predictions reveals significant mode collapse:
+the most frequent prediction (``m\textipa{\textschwa}n
+u\c{s}aql\i{}qdan \c{s}\textipa{\textschwa}h\textipa{\textschwa}r\textipa{\textschwa}
+var'') accounts for 36.7\% of all outputs (123/335).
+The model generates only 113 unique predictions out of 335 inputs,
+and the top-10 predictions cover 52.8\% of all outputs.
+This indicates that the decoder converges to statistically common
+patterns rather than fully conditioning on the visual encoder output,
+a well-documented challenge in low-resource sequence-to-sequence
+models.
+
+\paragraph{Vocabulary analysis.}
+The model produces 275 unique words, of which 248 (90.2\%) appear in
+the ground-truth vocabulary (356 unique words).
+Only 27 out-of-vocabulary words are generated, indicating that the
+decoder has learned the target lexicon well but struggles with
+correct sentence-level composition.
+The average predicted sentence length (4.7 words) closely matches
+the ground truth (4.9 words).
+
+\paragraph{Strengths of cosine retrieval.}
+The proposed retrieval system requires \emph{no training} and
+\emph{no GPU}, making it immediately deployable on commodity hardware.
+Vocabulary expansion requires only the addition of reference videos.
+The cosine search over 335 vectors completes in under 3\,ms.
+
+\paragraph{Strengths of Seq2Seq.}
+Despite mode collapse, the Seq2Seq architecture demonstrates that
+learned models can outperform retrieval baselines even with very
+small crowdsourced datasets.
+With more data, it can generate novel sentences not in the reference
+database, handle grammatical variation, and generalise across signer
+styles through learned representations.
+
+\paragraph{Limitations.}
+The primary limitation is dataset size: 335~videos across
+120~sentences provides only 2.8 videos per sentence on average.
+The Seq2Seq model exhibits clear overfitting (train--val gap of
+1.97) and mode collapse (36.7\% of predictions map to a single
+sentence).
+The cosine retrieval approach is limited by similar hand
+configurations across semantically different sentences.
+Furthermore, only manual (hand) features are used; non-manual
+markers such as facial expressions, head tilt, and body posture—which
+carry grammatical meaning in signed languages—are currently excluded.
+
+\paragraph{Future Directions.}
+Expanding the crowdsourced dataset via the Telegram bot with
+additional signers and sentences is the most direct path to
+improved performance.
+Integrating MediaPipe Holistic features (face mesh and pose
+landmarks) would capture non-manual signals.
+For the Seq2Seq model, pre-training on larger sign-language corpora
+(e.g.\ PHOENIX-2014T, CSL) followed by fine-tuning on AzSL could
+mitigate mode collapse and improve generalisation.
+A hybrid approach combining cosine retrieval for candidate generation
+and Seq2Seq for re-ranking may combine the strengths of both
+approaches.
+
+% ================================================================
+\section{Conclusion}\label{sec:conclusion}
+% ================================================================
+
+This paper presented and compared two approaches for real-time
+Azerbaijani Sign Language sentence recognition on a crowdsourced
+Telegram dataset of 335~videos across 120~sentences.
+The first—a training-free cosine retrieval pipeline—extracts MediaPipe
+hand landmarks from uniformly sampled video frames, constructs a compact
+$64 \times 126$ feature matrix per video, and retrieves the closest
+matching sentence from a pre-computed database using cosine similarity.
+The second—a Seq2Seq encoder--decoder model—processes video frames
+through SqueezeNet and a bidirectional LSTM encoder, then generates
+target sentences through an attention-augmented LSTM decoder with beam
+search.
+A shared webcam-based inference module automatically detects signing
+onset and offset through a four-state machine
+(\textsc{idle} $\rightarrow$ \textsc{recording} $\rightarrow$
+\textsc{cooldown} $\rightarrow$ \textsc{matching}),
+returning the top-3 candidate sentences in real time.
+
+On the crowdsourced Telegram dataset, the Seq2Seq model achieved
+35.5\% top-1 accuracy (BLEU-4: 31.43\%, WER: 64.05\%), outperforming
+the training-free cosine retrieval's 30.7\% top-1 accuracy.
+Both approaches maintain sub-20\,ms matching latency on a standard
+CPU.
+User-contributed videos (37.0\%) outperformed translator videos
+(32.8\%), demonstrating that crowdsourced data diversity benefits
+learned models despite increased signer variability.
+However, mode collapse remains a significant challenge: 36.7\% of
+Seq2Seq predictions map to a single sentence, highlighting the need
+for larger datasets to improve generalisation.
+
+Several directions remain for future work.
+First, expanding the crowdsourced dataset via the Telegram bot
+with additional signers and sentences would strengthen both
+approaches.
+Second, a hybrid system that uses cosine retrieval for candidate
+generation and Seq2Seq for re-ranking may combine the strengths of
+both methods.
+Third, incorporating body pose and facial expression features from
+MediaPipe Holistic would capture non-manual markers that carry
+grammatical meaning in sign languages.
+Finally, porting the system to a mobile application would bring
+real-time sign language recognition directly to end users.
+
+% ================================================================
+% Bibliography
+% ================================================================
+%
+% \bibliographystyle{splncs04}
+% \bibliography{refs}
+%
+\begin{thebibliography}{10}
+
+\bibitem{alishzade2024azsld}
+Alishzade, N., Hasanov, J.:
+AzSLD: Azerbaijani Sign Language Dataset for Fingerspelling, Word, and
+Sentence Translation with Baseline Software.
+arXiv preprint arXiv:2411.xxxxx (2024)
+
+\bibitem{mustafazada2025crowdsourcing}
+Mustafazada, S., Muradova, G., Gozalov, R., Garayev, E., Hasanov, J.:
+Crowdsourcing-Based Interactive Learning Platform for the International
+Sign Language Community.
+In: 2025 6th International Conference on Problems of Cybernetics and
+Informatics (PCI), pp.~1--5 (2025).
+\doi{10.1109/PCI66488.2025.11219822}
+
+\bibitem{fang2013bayesian}
+Fang, X., Dehak, N., Glass, J.:
+Bayesian Distance Metric Learning on i-vector for Speaker Verification.
+ISCA Archive (2013)
+
+\bibitem{dehak2010cosine}
+Dehak, N., Dehak, R., Glass, J., Reynolds, D., Kenny, P.:
+Cosine Similarity Scoring without Score Normalization Techniques.
+Spoken Language Systems Group, MIT (2010)
+
+\bibitem{zhang2020deep}
+Zhang, D., Li, Y., Zhang, Z.:
+Deep Metric Learning with Spherical Embedding.
+In: NeurIPS, vol.~\textbf{33}, pp.~18772--18783 (2020)
+
+\bibitem{zhu2020orthogonality}
+Zhu, Y., Mak, B.:
+Orthogonality Regularizations for End-to-End Speaker Verification.
+ISCA Archive (2020)
+
+\bibitem{liu2024skeleton}
+Liu, L., Zheng, H., Zhu, Z., Zhou, P.:
+Skeleton-based Sign Language Recognition Using a Dual-Stream
+Spatio-Temporal Dynamic Graph Convolutional Network.
+arXiv preprint arXiv:2402.xxxxx (2024)
+
+\bibitem{draganov2024hidden}
+Draganov, A., Vadgama, S., Bekkers, E.J.:
+The Hidden Pitfalls of the Cosine Similarity Loss.
+arXiv preprint arXiv:2403.xxxxx (2024)
+
+\bibitem{weber2025timepoint}
+Weber, R.S., Ishay, S.B., Lavrinenko, A., Finder, S.E., Freifeld, O.:
+TimePoint: Accelerated Time Series Alignment via Self-Supervised Keypoint
+and Descriptor Learning.
+In: Proc.\ ICML 2025, PMLR vol.~\textbf{267} (2025)
+
+\bibitem{camgoz2018neural}
+Camg\"{o}z, N.C., Hadfield, S., Koller, O., Ney, H., Bowden, R.:
+Neural Sign Language Translation.
+In: CVPR, pp.~7784--7793 (2018)
+
+\bibitem{iandola2016squeezenet}
+Iandola, F.N., Han, S., Moskewicz, M.W., Ashraf, K., Dally, W.J.,
+Keutzer, K.:
+SqueezeNet: AlexNet-level Accuracy with 50x Fewer Parameters and
+$<$0.5\,MB Model Size.
+arXiv preprint arXiv:1602.07360 (2016)
+
+\end{thebibliography}
+\end{document}

@@ -1,0 +1,17 @@
+{
+  "evaluated_videos": 407,
+  "missing_label": 0,
+  "missing_features_skipped": 93,
+  "errors": 0,
+  "top1_accuracy": 15.97051597051597,
+  "top3_accuracy": 25.552825552825553,
+  "top5_accuracy": 26.535626535626534,
+  "latency_sec": {
+    "feature_mean": 0.0009030625012449243,
+    "decode_mean": 0.017121973785592347,
+    "total_mean": 0.018025901750947464,
+    "feature_median": 0.000902567058801651,
+    "decode_median": 0.015350535977631807,
+    "total_median": 0.01626397401560098
+  }
+}

@@ -1,0 +1,166 @@
+expected,pred_top1,count
+mənim anam yazmaq-oxumaq bilmir,mən soyuq,19
+salam,mən soyuq,18
+siz futbol oynamaq ?,axşam xeyir,16
+mən oxumaq bilmir,mən yazmaq bilmir,15
+bura sonra hara getmək ?,mən öyrənmək istəmək,7
+başqa hansı sənəd lazım ?,o çalışmaq şagird,7
+təşəkkür etmək,mən soyuq,7
+mən yazmaq bilmir,mən öyrənmək istəmək,6
+bura sonra hara getmək ?,mən yazmaq bilmir,5
+sabah xeyir,mən soyuq,5
+mən oxumaq bilmir,mən öyrənmək istəmək,5
+başqa hansı sənəd lazım ?,mən öyrənmək istəmək,5
+başqa hansı sənəd lazım ?,mən yazmaq bilmir,5
+mən nərimanov metro yanında yaşamaq,mən soyuq,4
+siz neçə yaş var ?,mən bu razı deyil,4
+biz həmişə bazar gün futbol oynamaq,mən öyrənmək istəmək,4
+siz ad nə ?,mən soyuq,4
+siz məni görmək ?,mən soyuq,4
+biz həmişə bazar gün futbol oynamaq,mən yazmaq bilmir,4
+siz neçə yaş var ?,axşam xeyir,4
+bura sonra hara getmək ?,o çalışmaq şagird,4
+hamı salam,mən soyuq,3
+siz futbol oynamaq ?,mən yüksək təhsil yox,3
+bu gün hava çox gözəl,mən öyrənmək istəmək,3
+təşəkkür etmək,siz ad nə ?,3
+başqa hansı sənəd lazım ?,siz saat 6 sonra işləmək ?,3
+təşəkkür etmək,mənim ad nə ?,3
+kondisoner söndurmək bilmək siz ?,mən subay,3
+biz həmişə bazar gün futbol oynamaq,o çalışmaq şagird,3
+siz məni görmək ?,mənim qızm rəssam olmaq,3
+o yazmaq-oxumaq bilmir,mən soyuq,3
+hamı salam,mən həkim yoxlamaq getmək istəmək,2
+sabah xeyir,siz ad nə ?,2
+siz məni görmək ?,uşaqlar düzgün yedizdirmək lazım,2
+siz məni görmək ?,siz ad nə ?,2
+axşam xeyir,mən bu razı deyil,2
+bura sonra hara getmək ?,mənim qızm rəssam olmaq,2
+bu gün hava çox gözəl,mən yazmaq bilmir,2
+siz məni görmək ?,bu bir baha,2
+bu gün hava çox gözəl,mənim qızm rəssam olmaq,2
+biz həmişə bazar gün futbol oynamaq,mənim qızm rəssam olmaq,2
+salam,məktəb otaq yığışdırmaq lazım,2
+hamı salam,siz şənbə işləmək ?,2
+o yazmaq-oxumaq bilmir,wifi parol nə ?,2
+siz ad nə ?,mən acımaq,2
+sabah xeyir,mən acımaq,2
+sabah xeyir,mənim düzgün yedizdirmək lazım,2
+sabah xeyir,mənim qızm rəssam olmaq,2
+o yazmaq-oxumaq bilmir,sənin ləqəb nə ?,2
+mən yazmaq bilmir,o bura amerika gəlmək,2
+mən nərimanov metro yanında yaşamaq,mən bakı yaşamaq,2
+kondisoner söndurmək bilmək siz ?,siz ad nə ?,2
+kondisoner söndurmək bilmək siz ?,mən soyuq,2
+mən nərimanov metro yanında yaşamaq,mənim qızm rəssam olmaq,2
+mən nərimanov metro yanında yaşamaq,siz ad nə ?,2
+mən nərimanov metro yanında yaşamaq,bu bir baha,2
+təşəkkür etmək,sahil metro necə getmək bilmək,2
+təşəkkür etmək,uşaqlar düzgün yedizdirmək lazım,1
+axşam xeyir,wifi parol nə ?,1
+başqa hansı sənəd lazım ?,o saat 6 sonra işləmək ?,1
+biz həmişə bazar gün futbol oynamaq,başqa hansı bilmir,1
+siz məni görmək ?,mən bakı yaşamaq,1
+siz məni görmək ?,mən harda avtobus var ?,1
+siz məni görmək ?,mən həkim yoxlamaq getmək istəmək,1
+siz məni görmək ?,mən məşğulluq müraciət etmək istəmək,1
+biz həmişə bazar gün futbol oynamaq,mən bakı yaşamaq,1
+biz həmişə bazar gün futbol oynamaq,mən qızım məktəb getmək istəmək,1
+biz həmişə bazar gün futbol oynamaq,mən siyahı dərman lazım,1
+bu gün hava çox gözəl,mən qızım məktəb getmək oxumaq,1
+kondisoner söndurmək bilmək siz ?,wifi parol nə ?,1
+mən indi a-d-a universitet,bazar gün mənim iş yox,1
+mən indi a-d-a universitet,mən siz başa düşmək ?,1
+mən indi a-d-a universitet,mən soyuq,1
+mən indi a-d-a universitet,mən əvvəl mərkəz yaşamaq,1
+mən indi a-d-a universitet,siz ad nə ?,1
+mən nərimanov metro yanında yaşamaq,hamı yaxşı iş görmək istəmək,1
+mən nərimanov metro yanında yaşamaq,köynək xoşlamaq gəlmək,1
+mən nərimanov metro yanında yaşamaq,mən acımaq,1
+kondisoner söndurmək bilmək siz ?,mən bakı yaşamaq,1
+kondisoner söndurmək bilmək siz ?,mən həkim yoxlamaq getmək istəmək,1
+kondisoner söndurmək bilmək siz ?,mən təhsil yox,1
+kondisoner söndurmək bilmək siz ?,mən öyrənmək istəmək,1
+kondisoner söndurmək bilmək siz ?,mənim ləqəb ay,1
+kondisoner söndurmək bilmək siz ?,mənim otaq həmişə səliqəli olur,1
+mən nərimanov metro yanında yaşamaq,mən məşğulluq müraciət etmək istəmək,1
+mən nərimanov metro yanında yaşamaq,mən subay,1
+mən nərimanov metro yanında yaşamaq,mən yüksək təhsil yox,1
+mən nərimanov metro yanında yaşamaq,siz saat 6 sonra işləmək ?,1
+mən nərimanov metro yanında yaşamaq,siz seçim hansı istiqamət olacaq,1
+mən nərimanov metro yanında yaşamaq,yemək ərzaq baha,1
+mən orda dünən olmaq,köynək xoşlamaq gəlmək,1
+mən orda dünən olmaq,mənim qızm rəssam olmaq,1
+mən orda dünən olmaq,siz ad nə ?,1
+mən orda dünən olmaq,siz seçim hansı istiqamət olacaq,1
+mən oxumaq bilmir,mən bakı yaşamaq,1
+mən yazmaq bilmir,mən siyahı dərman lazım,1
+mən yazmaq bilmir,mənim qızm rəssam olmaq,1
+o yazmaq-oxumaq bilmir,köynək xoşlamaq gəlmək,1
+o yazmaq-oxumaq bilmir,mən acımaq,1
+o yazmaq-oxumaq bilmir,mən həkim yoxlamaq getmək istəmək,1
+hamı salam,siz ad nə ?,1
+hamı salam,siz saat 6 sonra işləmək ?,1
+hamı salam,wifi parol nə ?,1
+i̇şıq yandırmaq olar ?,mən acımaq,1
+kondisoner söndurmək bilmək siz ?,axşam xeyir,1
+kondisoner söndurmək bilmək siz ?,kondisoner kömək etmək,1
+kondisoner söndurmək bilmək siz ?,kondisoner xoşlamaq gəlmək,1
+o yazmaq-oxumaq bilmir,mən itirmək,1
+o yazmaq-oxumaq bilmir,mən kitab yeni oxumaq,1
+o yazmaq-oxumaq bilmir,mən siz başa düşmək ?,1
+o yazmaq-oxumaq bilmir,mən subay,1
+o yazmaq-oxumaq bilmir,mən yüksək təhsil yox,1
+o yazmaq-oxumaq bilmir,mənim ad günü aprel ay,1
+o yazmaq-oxumaq bilmir,mənim ləqəb nə ?,1
+o yazmaq-oxumaq bilmir,o çalışmaq,1
+o yazmaq-oxumaq bilmir,sahil metro necə getmək olmaq,1
+o yazmaq-oxumaq bilmir,salam,1
+o yazmaq-oxumaq bilmir,siz ad nə ?,1
+sabah xeyir,bu bir baha,1
+sabah xeyir,köynək xoşlamaq gəlmək,1
+sabah xeyir,mən həkim yoxlamaq getmək istəmək,1
+sabah xeyir,mən ucuz,1
+sabah xeyir,mənim ata,1
+sabah xeyir,mənim lal dost bu xəbər sevinmək,1
+hamı salam,mən telefon yox,1
+hamı salam,mənim ad günü aprel ay,1
+hamı salam,mənim nənə baha,1
+hamı salam,mənim qızm rəssam olmaq,1
+hamı salam,o bacı,1
+hamı salam,o yaxşı hazırlamaq,1
+hamı salam,o çalışmaq,1
+hamı salam,sahil metro necə getmək bilmək ?,1
+sabah xeyir,onun sənəd məndədir,1
+sabah xeyir,sahil metro necə getmək,1
+salam,mənim lal dost bu xəbər sevinmək,1
+bura sonra hara getmək ?,o bura amerika gəlmək,1
+hamı salam,bu bir baha,1
+hamı salam,hamı yaxşı,1
+hamı salam,köynək xoşlamaq nə ?,1
+hamı salam,mən acımaq,1
+siz ad nə ?,mənim ata,1
+siz ad nə ?,mənim lal dost bu xəbər sevinmək,1
+siz ad nə ?,uşaqlar düzgün yedizdirmək lazım,1
+siz futbol oynamaq ?,mən soyuq,1
+siz futbol oynamaq ?,siz ad nə ?,1
+siz futbol oynamaq ?,uşaqlar düzgün yedizdirmək lazım,1
+bura sonra hara getmək ?,bu ətir sərgi almaq olmaq,1
+bura sonra hara getmək ?,mən qızım məktəb getmək oxumaq,1
+siz məni görmək ?,köynək xoşlamaq nə ?,1
+siz məni görmək ?,mənim seçim etmək çətin,1
+siz məni görmək ?,o mən cavab vermek yox,1
+siz məni görmək ?,siz saat 6 sonra işləmək ?,1
+siz neçə yaş var ?,axşam xoşlamaq gəlmək,1
+siz neçə yaş var ?,mən acımaq,1
+axşam xeyir,mən soyuq,1
+təşəkkür etmək,siz seçim hansı istiqamət olacaq,1
+biz həmişə bazar gün futbol oynamaq,harda ödəniş etmək bilmək ?,1
+təşəkkür etmək,mən subay,1
+təşəkkür etmək,mənim həyat yoldaş səhv etmək,1
+təşəkkür etmək,mənim ləqəb nə ?,1
+təşəkkür etmək,mənim qızm rəssam olmaq,1
+kondisoner söndurmək bilmək siz ?,o mən cavab vermek yox,1
+kondisoner söndurmək bilmək siz ?,sahil metro necə getmək bilmək,1
+kondisoner söndurmək bilmək siz ?,siz ad,1
+kondisoner söndurmək bilmək siz ?,siz saat 6 sonra işləmək ?,1
