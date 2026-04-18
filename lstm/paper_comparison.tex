@@ -903,46 +903,93 @@ approaches.
 % ================================================================
 
 This paper presented and compared two approaches for real-time
-Azerbaijani Sign Language sentence recognition on a crowdsourced
-Telegram dataset of 335~videos across 120~sentences.
-The first—a training-free cosine retrieval pipeline—extracts MediaPipe
-hand landmarks from uniformly sampled video frames, constructs a compact
-$64 \times 126$ feature matrix per video, and retrieves the closest
-matching sentence from a pre-computed database using cosine similarity.
+Azerbaijani Sign Language (AzSL) sentence recognition, evaluated
+exclusively on a crowdsourced Telegram dataset comprising 335~videos
+across 120~unique sentences contributed by both professional
+translators (119~videos, 35.5\%) and community users
+(216~videos, 64.5\%) via a Telegram bot
+platform~\cite{mustafazada2025crowdsourcing}.
+
+The first approach—a training-free cosine retrieval pipeline—extracts
+MediaPipe hand landmarks from uniformly sampled video frames,
+constructs a compact $64 \times 126$ feature matrix per video, and
+retrieves the closest matching sentence from a pre-computed database
+using cosine similarity.
 The second—a Seq2Seq encoder--decoder model—processes video frames
-through SqueezeNet and a bidirectional LSTM encoder, then generates
-target sentences through an attention-augmented LSTM decoder with beam
-search.
+through a SqueezeNet~1.1 CNN backbone and a bidirectional LSTM
+encoder (hidden size 256, output dimension 512), then generates
+target sentences through an attention-augmented LSTM decoder with
+beam search ($B = 5$).
 A shared webcam-based inference module automatically detects signing
-onset and offset through a four-state machine
+onset and offset through a four-state finite state machine
 (\textsc{idle} $\rightarrow$ \textsc{recording} $\rightarrow$
 \textsc{cooldown} $\rightarrow$ \textsc{matching}),
-returning the top-3 candidate sentences in real time.
+returning the top-3 candidate sentences in real time on standard
+CPU hardware.
 
-On the crowdsourced Telegram dataset, the Seq2Seq model achieved
-35.5\% top-1 accuracy (BLEU-4: 31.43\%, WER: 64.05\%), outperforming
-the training-free cosine retrieval's 30.7\% top-1 accuracy.
+\paragraph{Key findings.}
+On the Telegram dataset, the Seq2Seq model achieved 35.5\% top-1
+accuracy (119/335 correct), outperforming the training-free cosine
+retrieval baseline at 30.7\% top-1.
+At the sequence level, the Seq2Seq model attained a corpus-average
+BLEU-4 of 31.43\%, a Word Error Rate (WER) of 64.05\%, and a
+Character Error Rate (CER) of 50.64\%.
 Both approaches maintain sub-20\,ms matching latency on a standard
-CPU.
-User-contributed videos (37.0\%) outperformed translator videos
-(32.8\%), demonstrating that crowdsourced data diversity benefits
-learned models despite increased signer variability.
-However, mode collapse remains a significant challenge: 36.7\% of
-Seq2Seq predictions map to a single sentence, highlighting the need
-for larger datasets to improve generalisation.
+CPU, confirming real-time feasibility.
 
-Several directions remain for future work.
-First, expanding the crowdsourced dataset via the Telegram bot
-with additional signers and sentences would strengthen both
-approaches.
-Second, a hybrid system that uses cosine retrieval for candidate
-generation and Seq2Seq for re-ranking may combine the strengths of
-both methods.
+\paragraph{Signer-type analysis.}
+User-contributed videos achieved 37.0\% top-1 accuracy compared to
+32.8\% for translator videos, with consistent trends across all
+metrics (User BLEU-4: 31.62\% vs.\ Translator: 31.09\%; User WER:
+63.00\% vs.\ Translator: 65.94\%).
+This demonstrates that crowdsourced data diversity benefits learned
+models despite increased signer variability, and that the larger
+pool of user recordings (216 vs.\ 119) provides denser per-sentence
+coverage for more robust generalisation.
+
+\paragraph{Training dynamics.}
+The Seq2Seq model trained for 71~epochs before early stopping, with
+the best validation loss (2.568) at epoch~64.
+The learning rate was reduced four times via ReduceLROnPlateau
+($0.01 \rightarrow 0.005 \rightarrow 0.0025 \rightarrow 0.00125$),
+each reduction producing a brief improvement in validation loss.
+The widening train--validation gap ($\Delta = 1.97$ at epoch~71)
+indicates overfitting, a direct consequence of the limited corpus
+size (2.8~videos per sentence on average).
+
+\paragraph{Challenges.}
+Mode collapse remains the most significant obstacle: the single most
+frequent prediction accounts for 36.7\% of all Seq2Seq outputs
+(123/335), and the top-10 predictions cover 52.8\% of all outputs.
+The model generates only 113~unique predictions out of 335~inputs,
+indicating that the decoder defaults to statistically dominant
+patterns rather than fully conditioning on the visual encoder
+output.
+Nevertheless, vocabulary quality is encouraging: the model produces
+275~unique words, of which 248 (90.2\%) appear in the ground-truth
+vocabulary, and average predicted sentence length (4.7~words)
+closely matches the reference (4.9~words).
+
+\paragraph{Future work.}
+Several directions remain to address these limitations.
+First, expanding the crowdsourced dataset via the Telegram bot with
+additional signers, sentences, and recording environments would
+directly mitigate overfitting and mode collapse.
+Second, a hybrid architecture that uses cosine retrieval for
+candidate generation followed by Seq2Seq re-ranking may combine the
+complementary strengths of both methods—retrieval robustness with
+generative flexibility.
 Third, incorporating body pose and facial expression features from
-MediaPipe Holistic would capture non-manual markers that carry
-grammatical meaning in sign languages.
+MediaPipe Holistic would capture non-manual markers (e.g.\ head
+tilt, eyebrow raise, mouth shape) that carry grammatical meaning in
+sign languages and are currently unmodelled.
+Fourth, pre-training the encoder on larger multilingual
+sign-language corpora before fine-tuning on AzSL could improve
+feature representations and reduce the data requirements.
 Finally, porting the system to a mobile application would bring
-real-time sign language recognition directly to end users.
+real-time sign language recognition directly to end users in the
+Azerbaijani DHH community, fulfilling the accessibility goal that
+motivates this work.
 
 % ================================================================
 % Bibliography

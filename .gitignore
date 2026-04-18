@@ -92,6 +92,15 @@ wandb/
 *.rar
 *.7z
 
+# Project-specific generated data
+cosine/data/
+cosine/outputs/
+DTW/cache/
+DTW/matrices/
+DTW/recognition_results/
+DTW/similarity/
+DTW/debug_match_export_test/
+
 # Installation Files
 *.deb
 *.rpm

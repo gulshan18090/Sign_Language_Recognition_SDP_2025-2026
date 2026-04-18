@@ -1,0 +1,441 @@
+================================================================================
+  RESEARCH PAPER STRUCTURE  —  Springer LNCS Format (5–6 pages)
+  
+  "Real-Time Sign Language Sentence Recognition via MediaPipe
+   Hand Landmarks and Cosine Similarity Matching"
+================================================================================
+
+  Target venue : Springer LNCS / Communications in Computer and
+                 Information Science (CCIS)
+  Page limit   : 5–6 pages (single-column, ~3500-4200 words + figures)
+  Template     : llncs.cls  (https://www.springer.com/gp/computer-science/lncs)
+  Font         : Computer Modern / Times, 10pt body text
+  Margins      : As defined by llncs.cls
+
+  Page budget (approximate):
+  ┌─────────────────────────────────────┬────────┐
+  │  Section                            │ Pages  │
+  ├─────────────────────────────────────┼────────┤
+  │  Title + Abstract + Keywords        │  0.4   │
+  │  1. Introduction                    │  0.8   │
+  │  2. Related Work                    │  0.6   │
+  │  3. Proposed Method                 │  1.6   │
+  │  4. Experiments & Results           │  1.4   │
+  │  5. Conclusion                      │  0.3   │
+  │  References                         │  0.5   │
+  ├─────────────────────────────────────┼────────┤
+  │  TOTAL                              │ ~5.6   │
+  └─────────────────────────────────────┴────────┘
+
+
+================================================================================
+  TITLE BLOCK
+================================================================================
+
+Title:
+  Real-Time Sign Language Sentence Recognition via MediaPipe
+  Hand Landmarks and Cosine Similarity Matching
+
+Authors:
+  [Author1], [Author2], ...
+  [Affiliation, City, Country]
+  [email]
+
+
+================================================================================
+  ABSTRACT  (~150-200 words)
+================================================================================
+
+  Sentence 1 – Context: Sign language is the primary communication
+               tool for hearing-impaired communities, yet automated
+               recognition systems remain heavy and data-hungry.
+  Sentence 2 – Gap: Low-resource languages such as Azerbaijani Sign
+               Language lack both large datasets and lightweight models.
+  Sentence 3 – Method: We present a training-free pipeline that
+               extracts MediaPipe hand landmarks (21 joints × 3 coords
+               × 2 hands = 126D per frame), uniformly samples 64 frames,
+               constructs a 64×126 feature matrix, and retrieves the
+               closest sentence via cosine similarity.
+  Sentence 4 – System: A real-time webcam module auto-detects signing
+               onset/offset and returns the top-3 matches.
+  Sentence 5 – Results: On 342 Azerbaijani SL videos spanning 80+
+               sentences, the system achieves [X]% top-1 and [Y]%
+               top-3 accuracy at ≤[Z] ms per query on a CPU.
+  Sentence 6 – Significance: The approach requires no GPU, no model
+               training, and can be extended with new sentences by
+               simply adding reference videos.
+
+  Keywords: Sign Language Recognition · MediaPipe · Hand Landmarks ·
+            Cosine Similarity · Real-Time · Azerbaijani Sign Language
+
+
+================================================================================
+  1. INTRODUCTION  (~0.8 page)
+================================================================================
+
+  Para 1 – Motivation & global context
+       • WHO statistics on hearing impairment
+       • Role of sign language, communication barrier
+
+  Para 2 – Problem with existing approaches
+       • Deep-learning SLR requires GPUs, large labelled corpora
+       • Low-resource languages underserved
+
+  Para 3 – Our approach (high-level)
+       • Landmark-based feature extraction + similarity retrieval
+       • No training phase; new sentences added by recording
+
+  Para 4 – Contributions (numbered list)
+       1. End-to-end training-free pipeline: video → landmarks → cosine match
+       2. Real-time webcam inference with automatic sign segmentation
+       3. First application to Azerbaijani Sign Language sentences
+       4. Open dataset of 342 videos across 80+ sentences
+
+  Para 5 – Paper outline (1–2 sentences)
+
+
+================================================================================
+  2. RELATED WORK  (~0.6 page)
+================================================================================
+
+  2.1  Sign Language Recognition
+       • Brief survey: CNN, RNN/LSTM, Transformer methods [cite 4-5]
+       • Computational cost and data requirements
+
+  2.2  Hand Pose Estimation & MediaPipe
+       • OpenPose vs. MediaPipe [cite 2-3]
+       • MediaPipe advantages: 21 landmarks, real-time on CPU
+
+  2.3  Similarity-Based Approaches
+       • Template matching, DTW for gestures [cite 2-3]
+       • Cosine similarity in retrieval systems [cite 1-2]
+
+  Last sentence – Gap: no prior work applies landmark-cosine
+                  matching at sentence level for Azerbaijani SL.
+
+
+================================================================================
+  3. PROPOSED METHOD  (~1.6 pages)
+================================================================================
+
+  ┌──────────────────────────────────────────────────────────┐
+  │  *** FIGURE 1 – System Architecture (full-width) ***     │
+  │                                                          │
+  │  ┌───────┐   ┌───────────┐   ┌──────────┐   ┌────────┐ │
+  │  │ Video │──▶│ Frame     │──▶│ MediaPipe│──▶│Feature │ │
+  │  │ Input │   │ Sampling  │   │ Hands    │   │Matrix  │ │
+  │  └───────┘   │ (N = 64)  │   │ 126D/frm │   │64×126  │ │
+  │              └───────────┘   └──────────┘   └───┬────┘ │
+  │                                                  │      │
+  │                              ┌──────────┐   ┌────▼────┐ │
+  │                              │ Top-K    │◀──│ Cosine  │ │
+  │                              │ Results  │   │ Search  │ │
+  │                              └──────────┘   └─────────┘ │
+  │                                                          │
+  │  Caption: Overall pipeline. Offline: build database.     │
+  │           Online: webcam query.                          │
+  └──────────────────────────────────────────────────────────┘
+
+  3.1  Frame Extraction & Uniform Sampling
+       • Read all frames via OpenCV
+       • Uniform sampling: idx_i = ⌊i · T / N⌋, i = 0…N−1
+       • If T < N → duplicate; if T > N → stride
+       • One equation block for sampling formula
+
+  3.2  Hand Landmark Feature Extraction
+
+  ┌──────────────────────────────────────────────────────────┐
+  │  *** FIGURE 2 – MediaPipe 21-Landmark Hand Model ***     │
+  │                                                          │
+  │  (Use official MediaPipe diagram, ~0.25 page)            │
+  │  Show: 21 numbered joints on a hand silhouette           │
+  │  Caption: MediaPipe hand landmark topology.              │
+  │  21 joints × 3 coordinates (x,y,z) = 63 features/hand.  │
+  └──────────────────────────────────────────────────────────┘
+
+       • 21 landmarks × 3 coords × 2 hands = 126 features per frame
+       • Wrist-centred normalization:
+             c_i = l_i − l_0
+             n_i = c_i / max_j ‖c_j‖
+       • Zero-pad if hand not detected
+
+  3.3  Feature Matrix & Cosine Similarity
+
+       • Feature matrix: F ∈ ℝ^{N×126}  (one per video)
+       • Flatten: f = vec(F) ∈ ℝ^{8064}
+       • Cosine similarity:
+             sim(a, b) = (a · b) / (‖a‖ · ‖b‖)
+       • Per-sentence score = max over all reference videos
+
+  ┌──────────────────────────────────────────────────────────┐
+  │  *** FIGURE 3 – Feature Matrix Heatmap ***               │
+  │                                                          │
+  │  (Side-by-side: two matrices from same sentence,         │
+  │   showing structural similarity)                         │
+  │  X-axis: 126 features, Y-axis: 64 frames                │
+  │  Caption: Feature matrices for two recordings of the     │
+  │  same sentence show similar temporal-spatial patterns.    │
+  └──────────────────────────────────────────────────────────┘
+
+  3.4  Real-Time Inference
+
+  ┌──────────────────────────────────────────────────────────┐
+  │  *** FIGURE 4 – State Machine Diagram ***                │
+  │                                                          │
+  │    ┌──────┐  hands    ┌───────────┐  no hands  ┌──────┐ │
+  │    │ IDLE │─────────▶│ RECORDING │──────────▶│COOL- │ │
+  │    └──────┘           └───────────┘  (2 sec)   │DOWN  │ │
+  │       ▲                    ▲                    └──┬───┘ │
+  │       │                    │  hands back           │     │
+  │       │                    └───────────────────────┘     │
+  │       │               timeout elapsed                    │
+  │       │◀──── MATCH & DISPLAY TOP-3 ◀────────────────────┘│
+  │                                                          │
+  │  Caption: State machine for automatic sign segmentation. │
+  └──────────────────────────────────────────────────────────┘
+
+       • IDLE: wait for hands
+       • RECORDING: collect frames while hands visible
+       • COOLDOWN: hands gone → wait 2 s → confirm end
+       • MATCHING: trim edges, sample 64 frames, extract features,
+         cosine search, display top-3
+       • Controls: q = quit, r = reset
+
+
+================================================================================
+  4. EXPERIMENTS & RESULTS  (~1.4 pages)
+================================================================================
+
+  4.1  Dataset
+
+       ┌──────────────────────────────────────────────┐
+       │  *** TABLE 1 – Dataset Statistics ***         │
+       │                                               │
+       │  Metric                       │ Value         │
+       │  ─────────────────────────────┼──────         │
+       │  Total videos                 │ 342           │
+       │  Unique sentences             │ 80+           │
+       │  Signers                      │ [N]           │
+       │  Avg. duration/video          │ [X] sec       │
+       │  Avg. frames/video            │ [Y]           │
+       │  Videos/sentence (min–max)    │ 2–6           │
+       │  Language                     │ Azerbaijani SL│
+       │                                               │
+       │  Caption: Summary of the Azerbaijani SL       │
+       │  sentence dataset.                            │
+       └──────────────────────────────────────────────┘
+
+       • Sentences: daily phrases, greetings, cultural expressions
+       • Mix of translator (reference) and user videos
+
+  4.2  Implementation
+
+       ┌──────────────────────────────────────────────┐
+       │  *** TABLE 2 – System Parameters ***          │
+       │                                               │
+       │  Parameter             │ Value                │
+       │  ─────────────────────┼──────                 │
+       │  Sampled frames (N)   │ 64                    │
+       │  Max hands            │ 2                     │
+       │  Features / frame     │ 126                   │
+       │  Vector dimension     │ 8,064                 │
+       │  Detection confidence │ 0.5                   │
+       │  Normalization        │ Wrist-centred         │
+       │  Similarity metric    │ Cosine                │
+       │  Cooldown timeout     │ 2.0 s                 │
+       │                                               │
+       │  Caption: Hyperparameters used in all         │
+       │  experiments.                                 │
+       └──────────────────────────────────────────────┘
+
+       • Python 3.x, MediaPipe, OpenCV, NumPy, SciPy
+       • Hardware: [CPU model], [RAM] — no GPU required
+       • Evaluation: leave-one-out (each video as query)
+
+  4.3  Recognition Accuracy
+
+       ┌──────────────────────────────────────────────┐
+       │  *** TABLE 3 – Recognition Results ***        │
+       │                                               │
+       │  Metric        │ All    │ Translator │ User   │
+       │  ──────────────┼────────┼────────────┼──────  │
+       │  Top-1 Acc (%) │ [X.X]  │  [X.X]     │ [X.X] │
+       │  Top-3 Acc (%) │ [X.X]  │  [X.X]     │ [X.X] │
+       │  Top-5 Acc (%) │ [X.X]  │  [X.X]     │ [X.X] │
+       │                                               │
+       │  Caption: Recognition accuracy (leave-one-out)│
+       └──────────────────────────────────────────────┘
+
+  4.4  Effect of Frame Count
+
+       ┌──────────────────────────────────────────────┐
+       │  *** FIGURE 5 – Bar Chart ***                 │
+       │                                               │
+       │  X-axis: N = {16, 32, 64, 128}               │
+       │  Y-axis: Top-1 Accuracy (%)                   │
+       │  Bars grouped: Top-1, Top-3                   │
+       │                                               │
+       │  Caption: Effect of sampled frame count N     │
+       │  on recognition accuracy.                     │
+       └──────────────────────────────────────────────┘
+
+  4.5  Latency
+
+       ┌──────────────────────────────────────────────┐
+       │  *** TABLE 4 – Latency Breakdown ***          │
+       │                                               │
+       │  Stage                │ Time (ms)             │
+       │  ────────────────────┼───────────             │
+       │  Frame read + sample │ [X]                    │
+       │  MediaPipe extraction│ [X]                    │
+       │  Cosine search (342) │ [X]                    │
+       │  Total per query     │ [X]                    │
+       │                                               │
+       │  Caption: Average inference latency on        │
+       │  [CPU model] (CPU only, no GPU).              │
+       └──────────────────────────────────────────────┘
+
+  4.6  Qualitative Examples
+
+       ┌──────────────────────────────────────────────┐
+       │  *** FIGURE 6 – Screenshot of Real-Time UI ***│
+       │                                               │
+       │  (Webcam frame with hand landmarks drawn,     │
+       │   status bar "RECORDING (53 frames)",         │
+       │   bottom overlay with Top-3 results)          │
+       │                                               │
+       │  Caption: Real-time system interface showing  │
+       │  detected landmarks and top-3 matched         │
+       │  sentences.                                   │
+       └──────────────────────────────────────────────┘
+
+       • Discuss 1–2 correct examples briefly
+       • Discuss 1–2 failure cases (similar hand shapes for
+         different sentences, signer variation)
+
+  4.7  Discussion (short paragraph)
+       • Strengths: no training, CPU-only, extensible
+       • Limitations: flat cosine is speed-sensitive,
+         needs good hand visibility, no body/face cues
+       • Scalability note: matching 342 vectors < 50 ms
+
+
+================================================================================
+  5. CONCLUSION  (~0.3 page)
+================================================================================
+
+  DRAFT TEXT:
+
+  This paper presented a lightweight, training-free pipeline for real-time
+  Azerbaijani Sign Language sentence recognition. The system extracts
+  MediaPipe hand landmarks from uniformly sampled video frames, constructs
+  a compact 64×126 feature matrix per video, and retrieves the closest
+  matching sentence from a pre-computed database using cosine similarity.
+  A webcam-based inference module automatically detects signing onset and
+  offset through a four-state machine (IDLE → RECORDING → COOLDOWN →
+  MATCHING), returning the top-3 candidate sentences in real time.
+
+  Evaluated on a dataset of 342 videos spanning over 80 Azerbaijani Sign
+  Language sentences, the system achieved [X]% top-1 accuracy and [Y]%
+  top-3 accuracy with an average query latency of [Z] ms on a standard
+  CPU, requiring no GPU or dedicated hardware. The approach is inherently
+  extensible: adding a new sentence requires only recording one or more
+  reference videos and extracting their feature matrices, with no
+  retraining or fine-tuning.
+
+  Several directions remain for future work. First, learning a compact
+  embedding space via a small neural network could improve discriminative
+  power among visually similar sentences. Second, incorporating body pose
+  and facial expression features from MediaPipe Holistic would capture
+  non-manual markers that carry grammatical meaning in sign languages.
+  Third, expanding the dataset with more signers and sentences would
+  strengthen cross-signer generalization. Finally, porting the system to
+  a mobile application would bring real-time sign language recognition
+  directly to end users.
+
+
+================================================================================
+  REFERENCES  (~12-18 entries, Springer LNCS bib style)
+================================================================================
+
+   [1]  Lugaresi et al. – MediaPipe (arXiv 2019)
+   [2]  Zhang et al. – MediaPipe Hands (CVPR Workshop 2020)
+   [3]  Koller et al. – Continuous SLR survey (IJCV 2020)
+   [4]  Camgöz et al. – Neural Sign Language Translation (CVPR 2018)
+   [5]  Rastgoo et al. – Sign Language Recognition survey (2021)
+   [6]  Cao et al. – OpenPose (IEEE TPAMI 2019)
+   [7]  De Coster et al. – SLR with Transformers (2021)
+   [8]  Müller & Röder – DTW for gesture recognition (2006)
+   [9]  Jiang et al. – Skeleton-based action recognition (2020)
+  [10]  [Azerbaijani SL reference if any]
+  [11]  ... (add 5–8 more relevant works)
+
+
+================================================================================
+  VISUAL ELEMENTS SUMMARY  (6 Figures + 4 Tables)
+================================================================================
+
+  Figures (keep within column width or full page width):
+  ───────
+  Fig. 1  System architecture pipeline           (Sec 3,   ~0.20 page)
+  Fig. 2  MediaPipe 21-landmark hand model        (Sec 3.2, ~0.15 page)
+  Fig. 3  Feature matrix heatmap (2 examples)     (Sec 3.3, ~0.20 page)
+  Fig. 4  State machine diagram                   (Sec 3.4, ~0.15 page)
+  Fig. 5  Bar chart: accuracy vs. frame count N   (Sec 4.4, ~0.20 page)
+  Fig. 6  Real-time system screenshot             (Sec 4.6, ~0.20 page)
+
+  Tables:
+  ───────
+  Table 1  Dataset statistics                     (Sec 4.1)
+  Table 2  System hyperparameters                 (Sec 4.2)
+  Table 3  Top-K recognition accuracy             (Sec 4.3)
+  Table 4  Latency breakdown                      (Sec 4.5)
+
+
+================================================================================
+  LaTeX SKELETON (copy into your .tex file)
+================================================================================
+
+  \documentclass[runningheads]{llncs}
+  \usepackage{graphicx}
+  \usepackage{amsmath,amssymb}
+  \usepackage{booktabs}
+  \usepackage{hyperref}
+
+  \begin{document}
+
+  \title{Real-Time Sign Language Sentence Recognition via\\
+         MediaPipe Hand Landmarks and Cosine Similarity Matching}
+  \author{Author1 \and Author2}
+  \institute{University, City, Country\\
+             \email{\{a1,a2\}@university.edu}}
+  \maketitle
+
+  \begin{abstract} ... \end{abstract}
+  \keywords{Sign Language Recognition \and MediaPipe \and ...}
+
+  \section{Introduction}
+  \section{Related Work}
+  \section{Proposed Method}
+    \subsection{Frame Extraction and Uniform Sampling}
+    \subsection{Hand Landmark Feature Extraction}
+    \subsection{Feature Matrix and Cosine Similarity}
+    \subsection{Real-Time Inference}
+  \section{Experiments and Results}
+    \subsection{Dataset}
+    \subsection{Implementation Details}
+    \subsection{Recognition Accuracy}
+    \subsection{Effect of Frame Count}
+    \subsection{Latency Analysis}
+    \subsection{Qualitative Examples and Discussion}
+  \section{Conclusion}
+
+  \bibliographystyle{splncs04}
+  \bibliography{refs}
+
+  \end{document}
+
+
+================================================================================
+  END OF STRUCTURE
+================================================================================

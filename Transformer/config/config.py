@@ -106,14 +106,14 @@ class ModelConfig:
 
 @dataclass
 class TrainConfig:
-    epochs: int = 80
+    epochs: int = 200
     # Two LR groups: backbone gets smaller LR
     lr_backbone: float = 1e-5
     lr_head: float = 1e-4
     weight_decay: float = 1e-4
     warmup_steps: int = 300
     clip_grad_norm: float = 1.0
-    patience: int = 80
+    patience: int = 200
     save_top_k: int = 3
     mixed_precision: bool = True
 

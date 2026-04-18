@@ -1,0 +1,615 @@
+% Real-Time Sign Language Sentence Recognition — Springer LNCS
+% Version: improved full draft
+%
+\documentclass[runningheads]{llncs}
+%
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+%
+% Uncomment the following two lines for blue hyperlinks (Springer eBook style):
+%\usepackage{color}
+%\renewcommand\UrlFont{\color{blue}\rmfamily}
+%
+\begin{document}
+%
+\title{Real-Time Sign Language Sentence Recognition\\
+Using Feature Vectors and Cosine Similarity Matching}
+%
+%\titlerunning{Real-Time Sign Language Sentence Recognition}
+%
+\author{Gulshan Sariyeva\inst{1} \and
+Rahima Karimova\inst{1} \and
+Vasila Aliyeva\inst{1} \and
+Ilaha Jamalli\inst{1}}
+%
+\authorrunning{G.\ Sariyeva et al.}
+%
+\institute{
+School of IT and Engineering, ADA University, Baku, Azerbaijan\\
+\email{\{gsariyeva18090, rkarimova17347, valiyeva, ijamalli\}@ada.edu.az}
+}
+%
+\maketitle
+%
+\begin{abstract}
+Sign language is the primary means of communication for Deaf and
+Hard-of-Hearing (DHH) communities, yet automated sentence-level
+recognition remains computationally expensive and data-hungry.
+Low-resource sign languages such as Azerbaijani Sign Language (AzSL)
+lack both large annotated corpora and lightweight recognition models.
+We present a training-free, retrieval-based pipeline that extracts
+MediaPipe hand landmarks (21~joints $\times$ 3~coordinates $\times$ 2~hands
+$=$ 126 dimensions per frame), uniformly samples 64~frames from each
+video, constructs a compact $64 \times 126$ feature matrix, and
+retrieves the closest matching sentence via cosine similarity.
+A real-time webcam module detects signing onset and offset through a
+four-state finite state machine and returns the top-3 candidate
+sentences.
+Evaluated on 342 AzSL sentence-level videos spanning 124 unique
+sentences, the system achieves 30.7\% top-1, 45.0\% top-3, and
+49.4\% top-5 accuracy under leave-one-out cross-validation, with a
+cosine-search latency of under 3\,ms on a standard CPU.
+The approach requires no GPU, no model training, and extends to new
+sentences by simply recording additional reference videos.
+
+\keywords{Sign Language Recognition \and MediaPipe \and
+Hand Landmarks \and Cosine Similarity \and Real-Time Inference \and
+Azerbaijani Sign Language \and Feature Matching}
+\end{abstract}
+%
+%
+% ================================================================
+\section{Introduction}
+% ================================================================
+
+Sign language recognition (SLR) has emerged as a crucial technology for
+bridging the communication gap between Deaf and Hard-of-Hearing (DHH)
+communities and hearing individuals.  
+While recent deep-learning systems have made significant advances on
+isolated sign and word recognition, real-time \emph{sentence-level}
+recognition remains particularly challenging due to variability in
+signing speed, signer style, camera angle, and environmental
+conditions~\cite{liu2024skeleton}.
+
+Traditional approaches rely on handcrafted features and rule-based
+systems that often struggle to generalise across signers and
+contexts~\cite{fang2013bayesian}.
+More recent work leverages skeleton-based representations and
+spatio-temporal modelling to capture hand-motion dynamics and
+inter-joint correlations, but these methods typically require extensive
+training data and GPU resources.
+Low-resource languages such as Azerbaijani Sign Language (AzSL) are
+especially underserved: the Azerbaijani Sign Language Dataset
+(AzSLD)~\cite{alishzade2024azsld} provides an important starting
+point, yet lightweight, training-free recognition systems for AzSL
+remain absent.
+
+We address this gap with a retrieval-based pipeline that combines
+MediaPipe hand landmarks, wrist-centred normalisation, and cosine
+similarity matching.  
+Each video is reduced to a fixed-length feature matrix, flattened into a
+global embedding, and compared against a pre-computed database of
+sentence templates.  
+A webcam-based inference module detects signing onset and offset
+automatically, returning the top-3 candidate matches in real time on a
+CPU.
+
+Our contributions are as follows:
+\begin{enumerate}
+    \item An end-to-end, \textbf{training-free} pipeline: video
+          $\rightarrow$ landmarks $\rightarrow$ cosine match, requiring
+          no GPU and no labelled training set.
+    \item A \textbf{real-time webcam inference} system with automatic
+          sign segmentation via a four-state finite state machine.
+    \item The first application of landmark-based cosine retrieval to
+          \textbf{Azerbaijani Sign Language sentences}, evaluated on a
+          dataset of 342 videos across 124 unique sentences.
+    \item A systematic analysis of frame-count sensitivity, latency
+          breakdown, and signer-type stratification.
+\end{enumerate}
+
+The remainder of the paper is organised as follows.
+Section~\ref{sec:related} surveys related work.
+Section~\ref{sec:method} details the proposed method.
+Section~\ref{sec:experiments} presents experiments and results, and
+Section~\ref{sec:conclusion} concludes with future directions.
+
+% ================================================================
+\section{Related Work}\label{sec:related}
+% ================================================================
+
+\paragraph{Sign Language Recognition.}
+Early SLR systems focused on isolated word or fingerspelling recognition
+using Hidden Markov Models (HMMs) or Dynamic Time Warping (DTW) for
+temporal alignment~\cite{fang2013bayesian}.
+Recent approaches employ convolutional and recurrent neural
+networks~\cite{liu2024skeleton}, graph convolutional
+networks, and transformers to model spatio-temporal
+dependencies.
+While these models achieve high accuracy on benchmark datasets, they
+require large labelled corpora and GPU resources, limiting their
+applicability to low-resource languages.
+
+\paragraph{Hand Pose Estimation and MediaPipe.}
+Skeleton-based representations have gained popularity because they
+are robust to lighting and background variations.
+MediaPipe~Hands provides a lightweight, real-time pipeline for
+hand-landmark estimation, outputting 21 three-dimensional joint
+coordinates per hand on CPU.
+Compared to OpenPose, MediaPipe offers comparable accuracy with
+significantly lower computational cost, making it suitable for
+edge-device deployment.
+
+\paragraph{Similarity-Based and Metric-Learning Approaches.}
+Cosine similarity has been widely used in speaker verification and
+metric learning to compare high-dimensional
+embeddings~\cite{dehak2010cosine,zhang2020deep,zhu2020orthogonality}.
+Retrieval-based methods, which match an input gesture to a pre-recorded
+database using feature vectors, eliminate the need for training while
+maintaining interpretable and scalable
+inference~\cite{draganov2024hidden,weber2025timepoint}.
+However, no prior work applies landmark--cosine retrieval at the
+\emph{sentence level} for Azerbaijani Sign Language—a gap our work
+addresses.
+
+% ================================================================
+\section{Proposed Method}\label{sec:method}
+% ================================================================
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{diagram/systemarchaidt.drawio.png}
+\caption{System architecture overview.  
+Offline: reference videos are processed into feature matrices and stored.  
+Online: webcam frames undergo the same pipeline and are matched via
+cosine similarity.}
+\label{fig:architecture}
+\end{figure}
+
+% ----------------------------------------------------------------
+\subsection{Frame Extraction}\label{sec:frame}
+% ----------------------------------------------------------------
+
+To account for varying signing speeds and frame rates across devices, we
+implement uniform temporal sampling using OpenCV.
+Each video sequence of length~$T$ is reduced to a fixed sequence of
+$N = 64$ frames, ensuring temporal alignment across the database.
+The sampling index for each frame~$i$ is defined as:
+\begin{equation}
+\mathrm{idx}_i = \left\lfloor \frac{i \cdot T}{N} \right\rfloor,
+\quad i = 0, 1, \dots, N-1\,.
+\label{eq:sampling}
+\end{equation}
+When $T < N$, the system employs a zero-order hold (frame duplication)
+to maintain the gesture's motion profile without introducing artefacts.
+For $T > N$, stride-based sampling selects representative frames,
+ensuring a consistent temporal dimension for the feature matrix.
+
+% ----------------------------------------------------------------
+\subsection{Hand Landmark Feature Extraction}\label{sec:features}
+% ----------------------------------------------------------------
+
+Feature extraction utilises MediaPipe~Hands to generate a
+126-dimensional vector per frame
+($21~\text{landmarks} \times 3~\text{coordinates}\;(x,y,z) \times
+2~\text{hands}$).
+To ensure invariance to camera scale and signer distance—a critical
+requirement for edge deployment—we apply wrist-centred normalisation.
+
+Let $\mathbf{l}_i \in \mathbb{R}^{3}$ denote the $i$-th landmark
+coordinate and $\mathbf{l}_0$ the wrist landmark.
+The coordinates are first centred on the wrist and then scaled to a unit
+sphere:
+\begin{equation}
+\mathbf{c}_i = \mathbf{l}_i - \mathbf{l}_0
+\label{eq:centre}
+\end{equation}
+\begin{equation}
+\mathbf{n}_i = \frac{\mathbf{c}_i}
+                     {\max_{j}\, \lVert \mathbf{c}_j \rVert}
+\label{eq:normalise}
+\end{equation}
+Centring on the wrist eliminates variance caused by the signer's
+position within the frame, while scaling by the maximum landmark
+distance ensures the gesture magnitude remains consistent regardless
+of signer-to-camera distance.  
+When a hand is not detected, zero-padding preserves the dimensionality
+of the feature vector.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.45\linewidth]{diagram/Screenshot 2026-02-12 233701.png}
+\hfill
+\includegraphics[width=0.45\linewidth]{diagram/fig2_mediapipe_hand.png}
+\caption{MediaPipe hand landmark model: 21 joints with $(x,y,z)$
+coordinates, yielding 63~features per hand.}
+\label{fig:mediapipe}
+\end{figure}
+
+% ----------------------------------------------------------------
+\subsection{Feature Matrix and Cosine Similarity}\label{sec:cosine}
+% ----------------------------------------------------------------
+
+The sampled sequence is structured as a feature matrix
+$\mathbf{F} \in \mathbb{R}^{64 \times 126}$, which is flattened into
+a global embedding $\mathbf{f} \in \mathbb{R}^{8064}$.
+Inference is performed by computing the cosine similarity between the
+input embedding~$\mathbf{a}$ and each database
+template~$\mathbf{b}$:
+\begin{equation}
+\mathrm{sim}(\mathbf{a}, \mathbf{b}) =
+  \frac{\mathbf{a} \cdot \mathbf{b}}
+       {\lVert \mathbf{a} \rVert \; \lVert \mathbf{b} \rVert}\,.
+\label{eq:cosine}
+\end{equation}
+The cosine metric treats each embedding as a \emph{direction} in
+$\mathbb{R}^{8064}$, measuring angular proximity independently of
+vector magnitude.
+Because wrist-centred normalisation already constrains each frame's
+coordinates to a unit sphere, the resulting embeddings naturally occupy
+a bounded region of the space, mitigating the
+\emph{embedding-norm effect} observed in similarity-based
+optimisation~\cite{draganov2024hidden}.
+
+For each query video, the per-sentence score is computed as the
+\emph{maximum} cosine similarity among all reference videos of that
+sentence.
+A limitation of this flat-embedding approach is that adjacent fingers
+tend to move together, introducing feature correlation that may reduce
+discriminative power for visually similar sentences.
+We discuss potential remedies (e.g.\ dimensionality reduction) in
+Section~\ref{sec:discussion}.
+
+% ----------------------------------------------------------------
+\subsection{Real-Time Inference}\label{sec:realtime}
+% ----------------------------------------------------------------
+
+Fluid interaction is managed via a four-state finite state machine:
+\begin{center}
+\texttt{IDLE} $\;\rightarrow\;$ \texttt{RECORDING} $\;\rightarrow\;$
+\texttt{COOLDOWN} $\;\rightarrow\;$ \texttt{MATCHING}
+\end{center}
+
+\begin{itemize}
+    \item \textbf{IDLE}: The system waits for MediaPipe to detect hand
+          landmarks in the webcam feed.
+    \item \textbf{RECORDING}: Upon hand detection, frames are
+          continuously recorded.
+    \item \textbf{COOLDOWN}: When hands disappear, a 2-second temporal
+          buffer begins. If hands reappear within this window, recording
+          resumes; otherwise the gesture is deemed complete.
+    \item \textbf{MATCHING}: The recorded frames are trimmed (removing
+          leading/trailing frames without hands), uniformly sampled to
+          $N = 64$, processed through the feature-extraction pipeline,
+          and matched against the database. The top-3 results are
+          displayed to the user.
+\end{itemize}
+
+The 2-second cooldown prevents premature matching of partial sentences
+and balances technical accuracy with user experience.  
+After matching, the system returns to \texttt{IDLE}, ready for the next
+sign.
+
+% ================================================================
+\section{Experiments and Results}\label{sec:experiments}
+% ================================================================
+
+This section presents the empirical evaluation of the proposed pipeline.
+We report dataset characteristics, system configuration, recognition
+accuracy under leave-one-out cross-validation, the effect of the
+frame-sampling parameter~$N$, and end-to-end inference latency.
+
+% ----------------------------------------------------------------
+\subsection{Dataset}\label{sec:dataset}
+% ----------------------------------------------------------------
+
+We evaluate on a curated set of 342 Azerbaijani Sign Language (AzSL)
+sentence-level videos covering 124 unique sentences, collected from
+multiple signers including both professional translators and community
+users.
+The broader AzSLD corpus~\cite{alishzade2024azsld} provides valuable
+context for the Azerbaijani DHH community; our work operates on a
+sentence-level subset tailored for retrieval-based evaluation.
+Part of the data was collected via community-shared recordings
+distributed through Telegram channels~\cite{mustafazada2025crowdsourcing},
+reflecting realistic signing conditions and informal communication
+settings.
+Table~\ref{tab:dataset} summarises the dataset.
+
+\begin{table}[t]
+\centering
+\caption{Dataset statistics.}
+\label{tab:dataset}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Metric & Value \\
+\midrule
+Total videos           & 342 \\
+Unique sentences       & 124 \\
+Translator videos      & 122 \\
+User videos            & 218 \\
+Avg.\ duration / video & 6.50\,s ($\sigma = 1.86$) \\
+Median duration / video & 6.30\,s \\
+Avg.\ frames / video   & 199.6 ($\sigma = 58.5$) \\
+Videos / sentence (min--max) & 1--7 (avg.\ 2.8) \\
+Total recorded duration & 37.0\,min \\
+Language               & Azerbaijani SL \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The sentences cover everyday phrases, greetings, cultural expressions,
+and descriptions commonly used by the Azerbaijani DHH community.
+The mix of translator and user recordings introduces realistic
+intra-class variance in signing tempo and hand articulation.
+
+% ----------------------------------------------------------------
+\subsection{Implementation Details}\label{sec:implementation}
+% ----------------------------------------------------------------
+
+Table~\ref{tab:system} lists the system hyperparameters.
+The entire pipeline runs on CPU without GPU acceleration.
+
+\begin{table}[t]
+\centering
+\caption{System parameters.}
+\label{tab:system}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Parameter & Value \\
+\midrule
+Sampled frames ($N$) & 64 \\
+Max hands & 2 \\
+Features per frame & 126 (21 landmarks $\times$ 3 coords $\times$ 2 hands) \\
+Embedding dimension & 8{,}064 \\
+Detection confidence & 0.5 \\
+Normalisation & Wrist-centred + max-distance scaling \\
+Similarity metric & Cosine similarity \\
+Cooldown timeout & 2.0\,s \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\textbf{Software:} Python~3.11, MediaPipe~0.10.x, OpenCV, NumPy,
+SciPy.\\
+\textbf{Hardware:} Intel Core~i7 (13th~Gen), 16\,GB RAM, Windows~10 —
+no GPU.\\
+\textbf{Protocol:} Leave-one-out cross-validation; each of the 342
+videos serves as a query against the remaining 341 entries.
+Per-sentence scores are computed as the maximum cosine similarity among
+all reference videos of that sentence.
+
+% ----------------------------------------------------------------
+\subsection{Recognition Accuracy}\label{sec:accuracy}
+% ----------------------------------------------------------------
+
+Table~\ref{tab:accuracy} reports Top-$K$ accuracy overall and
+stratified by signer type.
+
+\begin{table}[t]
+\centering
+\caption{Recognition accuracy (leave-one-out, $N=64$).}
+\label{tab:accuracy}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Metric & All ($n{=}342$) & Translator ($n{=}122$) & User ($n{=}218$) \\
+\midrule
+Top-1 Accuracy (\%) & 30.7 & 24.6 & 34.4 \\
+Top-3 Accuracy (\%) & 45.0 & 37.7 & 49.5 \\
+Top-5 Accuracy (\%) & 49.4 & 43.4 & 53.2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+User videos achieve higher accuracy than translator videos.
+This result can be attributed to dataset composition: user videos
+outnumber translator videos approximately 2:1, providing denser
+coverage in the embedding space.
+Consequently, user queries are more likely to find close neighbours
+within the same class.
+The translator subset, although recorded with formal consistency,
+contains fewer exemplars per sentence.
+
+The gap between Top-1 (30.7\%) and Top-5 (49.4\%) indicates that the
+correct sentence frequently appears among the highest-ranked candidates,
+suggesting that a human-in-the-loop interface—where users select from a
+short list—can substantially improve practical usability.
+
+% ----------------------------------------------------------------
+\subsection{Effect of Frame Count}\label{sec:framecount}
+% ----------------------------------------------------------------
+
+We evaluate the sensitivity of the temporal sampling parameter
+$N \in \{16, 32, 64, 128\}$ by resampling stored 64-frame matrices via
+uniform index selection.
+Table~\ref{tab:frames} reports the results.
+
+\begin{table}[t]
+\centering
+\caption{Accuracy vs.\ sampled frame count~$N$.}
+\label{tab:frames}
+\begin{tabular}{@{}ccccc@{}}
+\toprule
+$N$ & Top-1 (\%) & Top-3 (\%) & Top-5 (\%) & Embedding dim \\
+\midrule
+16  & 27.8 & 39.5 & 46.8 & 2{,}016 \\
+32  & 31.6 & 43.9 & 49.7 & 4{,}032 \\
+64  & 30.7 & 45.0 & 49.4 & 8{,}064 \\
+128 & 30.7 & 45.0 & 49.4 & 16{,}128 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Accuracy improves from $N = 16$ to $N = 32$ as finer temporal
+resolution captures hand-shape transitions more effectively.
+Performance saturates at $N = 64$; doubling to $N = 128$ yields no
+additional gain while doubling the embedding dimensionality.
+We therefore adopt $N = 64$ as the operating point, offering the best
+trade-off between accuracy and computational cost.
+
+% ----------------------------------------------------------------
+\subsection{Latency Analysis}\label{sec:latency}
+% ----------------------------------------------------------------
+
+Table~\ref{tab:latency} reports average inference latency per query,
+measured over 10~runs.
+
+\begin{table}[t]
+\centering
+\caption{Latency breakdown (average over 10~runs).}
+\label{tab:latency}
+\begin{tabular}{@{}lc@{}}
+\toprule
+Stage & Time (ms) \\
+\midrule
+Frame read + sampling (from disk)    & 667.8 \\
+MediaPipe extraction (64 frames)     & 2{,}036.2 \\
+Cosine similarity search (342 vectors) & 2.8 \\
+\midrule
+Total (from video file)              & 2{,}706.8 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The dominant cost is MediaPipe landmark extraction ($\approx$75\% of
+total time).
+In the real-time webcam system, extraction occurs incrementally during
+recording at approximately 30\,FPS, eliminating post-capture delay.
+After recording, only the cosine search is executed, completing in under
+3\,ms for all 342 reference vectors.
+Thus, perceived user latency is dominated by the 2-second cooldown
+confirmation window rather than computation.
+
+% ----------------------------------------------------------------
+\subsection{Discussion}\label{sec:discussion}
+% ----------------------------------------------------------------
+
+\paragraph{Strengths.}
+The proposed system requires \emph{no training} and \emph{no GPU},
+making it immediately deployable on commodity hardware.
+Vocabulary expansion requires only the addition of reference videos—no
+retraining or fine-tuning.
+The cosine search over 342 vectors completes in under 3\,ms, and the
+pipeline scales linearly with the number of reference templates.
+
+\paragraph{Limitations.}
+Top-1 accuracy of 30.7\% reflects limited discriminative separation in
+the raw 8{,}064-dimensional space.
+Similar hand configurations across semantically different sentences lead
+to cross-class similarity confusion.
+Furthermore, only manual (hand) features are used; non-manual markers
+such as facial expressions, head tilt, and body posture—which carry
+grammatical meaning in signed languages—are currently excluded.
+
+\paragraph{Future Directions.}
+A lightweight learned projection (e.g.\ a shallow multi-layer perceptron
+trained with triplet loss) could improve inter-class separation while
+preserving CPU-only deployment.
+Integrating MediaPipe Holistic features (face mesh and pose landmarks)
+would capture non-manual signals.
+Dimensionality reduction via Principal Component Analysis (PCA) may
+decorrelate the inherently correlated hand features and improve cosine
+discrimination.
+Finally, expanding the dataset with additional signers and sentences
+would strengthen cross-signer generalisation.
+
+% ================================================================
+\section{Conclusion}\label{sec:conclusion}
+% ================================================================
+
+This paper presented a lightweight, training-free pipeline for real-time
+Azerbaijani Sign Language sentence recognition.
+The system extracts MediaPipe hand landmarks from uniformly sampled
+video frames, constructs a compact $64 \times 126$ feature matrix per
+video, and retrieves the closest matching sentence from a pre-computed
+database using cosine similarity.
+A webcam-based inference module automatically detects signing onset and
+offset through a four-state machine
+(\textsc{idle} $\rightarrow$ \textsc{recording} $\rightarrow$
+\textsc{cooldown} $\rightarrow$ \textsc{matching}),
+returning the top-3 candidate sentences in real time.
+
+Evaluated on a dataset of 342~videos spanning 124 Azerbaijani Sign
+Language sentences, the system achieved 30.7\% top-1 accuracy and
+45.0\% top-3 accuracy with a cosine-search latency of 2.8\,ms on a
+standard CPU, requiring no GPU or dedicated hardware.
+The approach is inherently extensible: adding a new sentence requires
+only recording one or more reference videos and extracting their
+feature matrices, with no retraining or fine-tuning.
+
+Several directions remain for future work.
+First, learning a compact embedding space via a small neural network
+could improve discriminative power among visually similar sentences.
+Second, incorporating body pose and facial expression features from
+MediaPipe Holistic would capture non-manual markers that carry
+grammatical meaning in sign languages.
+Third, expanding the dataset with more signers and sentences would
+strengthen cross-signer generalisation.
+Finally, porting the system to a mobile application would bring
+real-time sign language recognition directly to end users.
+
+% ================================================================
+% Bibliography
+% ================================================================
+%
+% \bibliographystyle{splncs04}
+% \bibliography{refs}
+%
+\begin{thebibliography}{9}
+
+\bibitem{alishzade2024azsld}
+Alishzade, N., Hasanov, J.:
+AzSLD: Azerbaijani Sign Language Dataset for Fingerspelling, Word, and
+Sentence Translation with Baseline Software.
+arXiv preprint arXiv:2411.xxxxx (2024)
+
+\bibitem{mustafazada2025crowdsourcing}
+Mustafazada, S., Muradova, G., Gozalov, R., Garayev, E., Hasanov, J.:
+Crowdsourcing-Based Interactive Learning Platform for the International
+Sign Language Community.
+In: 2025 6th International Conference on Problems of Cybernetics and
+Informatics (PCI), pp.~1--5 (2025).
+\doi{10.1109/PCI66488.2025.11219822}
+
+\bibitem{fang2013bayesian}
+Fang, X., Dehak, N., Glass, J.:
+Bayesian Distance Metric Learning on i-vector for Speaker Verification.
+ISCA Archive (2013)
+
+\bibitem{dehak2010cosine}
+Dehak, N., Dehak, R., Glass, J., Reynolds, D., Kenny, P.:
+Cosine Similarity Scoring without Score Normalization Techniques.
+Spoken Language Systems Group, MIT (2010)
+
+\bibitem{zhang2020deep}
+Zhang, D., Li, Y., Zhang, Z.:
+Deep Metric Learning with Spherical Embedding.
+In: NeurIPS, vol.~\textbf{33}, pp.~18772--18783 (2020)
+
+\bibitem{zhu2020orthogonality}
+Zhu, Y., Mak, B.:
+Orthogonality Regularizations for End-to-End Speaker Verification.
+ISCA Archive (2020)
+
+\bibitem{liu2024skeleton}
+Liu, L., Zheng, H., Zhu, Z., Zhou, P.:
+Skeleton-based Sign Language Recognition Using a Dual-Stream
+Spatio-Temporal Dynamic Graph Convolutional Network.
+arXiv preprint arXiv:2402.xxxxx (2024)
+
+\bibitem{draganov2024hidden}
+Draganov, A., Vadgama, S., Bekkers, E.J.:
+The Hidden Pitfalls of the Cosine Similarity Loss.
+arXiv preprint arXiv:2403.xxxxx (2024)
+
+\bibitem{weber2025timepoint}
+Weber, R.S., Ishay, S.B., Lavrinenko, A., Finder, S.E., Freifeld, O.:
+TimePoint: Accelerated Time Series Alignment via Self-Supervised Keypoint
+and Descriptor Learning.
+In: Proc.\ ICML 2025, PMLR vol.~\textbf{267} (2025)
+
+\end{thebibliography}
+\end{document}

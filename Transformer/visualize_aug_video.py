@@ -425,6 +425,100 @@ def play(video_path: str, cfg, n_variants: int = 1, fps: int = 8):
     print("[Visualizer] Closed.")
 
 
+def export_preview_mp4(
+    video_path: str,
+    cfg,
+    out_path: str,
+    n_variants: int = 1,
+    fps: int = 8,
+    variant_idx: int = 0,
+):
+    """Headless mode: write the composed side-by-side preview to an MP4 file."""
+    print(f"[Visualizer] Loading: {video_path}")
+    orig_frames = read_video_frames(
+        video_path=video_path,
+        num_frames=cfg.video.num_frames,
+        frame_size=tuple(cfg.video.frame_size),
+        temporal_jitter=False,
+    )
+    T = len(orig_frames)
+
+    augmentor = InstrumentedAugmentor(
+        frame_size=tuple(cfg.video.frame_size),
+        mean=tuple(cfg.video.mean), std=tuple(cfg.video.std),
+        random_crop=cfg.augment.random_crop,
+        random_crop_scale=tuple(cfg.augment.random_crop_scale),
+        horizontal_flip_p=cfg.augment.horizontal_flip_p,
+        color_jitter=cfg.augment.color_jitter,
+        color_jitter_brightness=cfg.augment.color_jitter_brightness,
+        color_jitter_contrast=cfg.augment.color_jitter_contrast,
+        color_jitter_saturation=cfg.augment.color_jitter_saturation,
+        color_jitter_hue=cfg.augment.color_jitter_hue,
+        color_jitter_p=cfg.augment.color_jitter_p,
+        grayscale_p=cfg.augment.grayscale_p,
+        gaussian_blur_p=cfg.augment.gaussian_blur_p,
+        gaussian_blur_kernel=cfg.augment.gaussian_blur_kernel,
+        frame_drop_p=cfg.augment.frame_drop_p,
+        temporal_reverse_p=cfg.augment.temporal_reverse_p,
+        cutout_p=cfg.augment.cutout_p,
+        cutout_size=cfg.augment.cutout_size,
+    )
+
+    variants = []
+    for v in range(n_variants):
+        ob, ab = build_aug(orig_frames, augmentor, cfg.video.mean, cfg.video.std)
+        variants.append({
+            "orig": ob, "aug": ab,
+            "applied": list(augmentor.applied),
+            "dropped": list(augmentor.dropped),
+            "cutout":  augmentor.cutout_box,
+        })
+        print(f"[Visualizer] Variant {v+1}: {augmentor.applied or ['(no transforms)']}")
+
+    variant_idx = max(0, min(int(variant_idx), len(variants) - 1))
+    v = variants[variant_idx]
+
+    # Render first frame to get output size
+    canvas0 = make_frame_canvas(
+        orig_bgr=v["orig"][0],
+        aug_bgr=v["aug"][0],
+        frame_idx=0,
+        total_frames=T,
+        applied=v["applied"],
+        dropped=v["dropped"],
+        cutout_box=v["cutout"],
+        paused=False,
+        variant_idx=variant_idx,
+        total_variants=len(variants),
+    )
+    h, w = canvas0.shape[:2]
+
+    out_path = str(out_path)
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(out_path, fourcc, float(fps), (w, h))
+    if not writer.isOpened():
+        raise RuntimeError(f"Failed to open VideoWriter for: {out_path}")
+
+    for frame_idx in range(T):
+        canvas = make_frame_canvas(
+            orig_bgr=v["orig"][frame_idx],
+            aug_bgr=v["aug"][frame_idx],
+            frame_idx=frame_idx,
+            total_frames=T,
+            applied=v["applied"],
+            dropped=v["dropped"],
+            cutout_box=v["cutout"],
+            paused=False,
+            variant_idx=variant_idx,
+            total_variants=len(variants),
+        )
+        writer.write(canvas)
+
+    writer.release()
+    print(f"[Visualizer] Wrote preview MP4 → {out_path}")
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # CLI
 # ═════════════════════════════════════════════════════════════════════════════
@@ -437,6 +531,12 @@ def main():
                         help="Pre-generate N augmentation variants (cycle with N key)")
     parser.add_argument("--fps", type=int, default=8,
                         help="Playback speed in frames/sec (default 8)")
+    parser.add_argument("--headless", action="store_true",
+                        help="No GUI window; export an MP4 preview instead")
+    parser.add_argument("--out", type=str, default="aug_preview.mp4",
+                        help="Output path for --headless export (default: aug_preview.mp4)")
+    parser.add_argument("--variant-idx", type=int, default=0,
+                        help="Which variant index to export in --headless mode (0-based)")
     args = parser.parse_args()
 
     cfg = get_config()
@@ -462,6 +562,22 @@ def main():
         print(f"[Visualizer] Random: {video_path}")
     else:
         video_path = " ".join(args.video)
+
+    if args.headless:
+        export_preview_mp4(
+            video_path=video_path,
+            cfg=cfg,
+            out_path=args.out,
+            n_variants=args.variants,
+            fps=args.fps,
+            variant_idx=args.variant_idx,
+        )
+        return
+
+    if not os.environ.get("DISPLAY"):
+        print("[Visualizer] No DISPLAY detected (headless session).")
+        print("            Re-run with --headless --out aug_preview.mp4")
+        sys.exit(2)
 
     play(video_path, cfg, n_variants=args.variants, fps=args.fps)
 

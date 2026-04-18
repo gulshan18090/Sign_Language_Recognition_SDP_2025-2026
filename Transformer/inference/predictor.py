@@ -8,7 +8,7 @@ Usage:
     print(gloss)   # e.g. "men mektebe getmek"
 """
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import torch
 
@@ -64,11 +64,21 @@ class SLRPredictor:
         )
         vocab.load(vocab_path)
 
+        state = cls._safe_torch_load(checkpoint_path)
+        model_state = cls._extract_model_state(state)
+
+        # Backward compatibility for older checkpoints that used `encoder.*`.
+        if any(k.startswith("encoder.") for k in model_state):
+            model_state = cls._upgrade_legacy_state_dict(model_state)
+
+        ckpt_input_dim = cls._infer_temporal_input_dim(model_state)
+        vit_output_dim = ckpt_input_dim or cfg.vit.output_dim
+
         model = SLRSeq2Seq(
             vocab_size=len(vocab),
             vit_model_name=cfg.vit.model_name,
             vit_pretrained=False,     # weights come from checkpoint
-            vit_output_dim=cfg.vit.output_dim,
+            vit_output_dim=vit_output_dim,
             encoder_d_model=cfg.model.encoder_d_model,
             encoder_nhead=cfg.model.encoder_nhead,
             encoder_num_layers=cfg.model.encoder_num_layers,
@@ -81,47 +91,65 @@ class SLRPredictor:
             decoder_dropout=cfg.model.decoder_dropout,
             pad_idx=vocab.pad_idx,
         )
-        state = torch.load(checkpoint_path, map_location="cpu")
-        model.load_state_dict(state["model_state"])
+
+        try:
+            load_res = model.load_state_dict(model_state, strict=True)
+        except RuntimeError:
+            load_res = model.load_state_dict(model_state, strict=False)
+
+        if load_res.missing_keys or load_res.unexpected_keys:
+            print(
+                f"[Predictor] Non-strict checkpoint load: "
+                f"missing={len(load_res.missing_keys)} unexpected={len(load_res.unexpected_keys)}"
+            )
+
         print(f"[Predictor] Loaded checkpoint  epoch={state.get('epoch','?')}  "
               f"val_loss={state.get('val_loss', 0):.4f}")
         return cls(model=model, vocab=vocab, cfg=cfg)
 
     # ── Main prediction API ──────────────────────────────────────────────────
 
-    def predict(self, video_path: str, beam_size: int = 4) -> str:
+    def predict(self, input_path: str, beam_size: int = 4) -> str:
         """
-        Predict from a single video file.
+        Predict from a single input.
 
         Args:
-            video_path : path to .mp4 / .avi / etc.
+            input_path : path to .mp4/.avi/... video OR pre-extracted .pt tensor
             beam_size  : 1 = greedy, >1 = beam search
         Returns:
             gloss string, e.g. "men mektebe getmek"
         """
-        frames, src_mask = self._load_video(video_path)
+        path = Path(input_path)
+        if path.suffix.lower() == ".pt":
+            feats, src_mask = self._load_feature_tensor(str(path))
+            return self._decode(feats, src_mask, beam_size)
+        frames, src_mask = self._load_video(str(path))
         return self._decode(frames, src_mask, beam_size)
 
     def predict_folder(self, folder_path: str, beam_size: int = 4) -> str:
         """
-        Predict from an idd folder (finds first video file inside).
+        Predict from an idd folder.
+        If `.pt` files are present, uses the first one; otherwise uses first video file.
         """
         folder = Path(folder_path)
+        pt_files = sorted(folder.glob("*.pt"))
+        if pt_files:
+            return self.predict(str(pt_files[0]), beam_size=beam_size)
         video_path = find_video_file(folder, self.cfg.video.video_extensions)
         return self.predict(str(video_path), beam_size=beam_size)
 
     # ── Decoding ─────────────────────────────────────────────────────────────
 
-    def _decode(self, frames: torch.Tensor, src_mask: torch.Tensor, beam_size: int) -> str:
+    def _decode(self, inputs: torch.Tensor, src_mask: torch.Tensor, beam_size: int) -> str:
         if beam_size == 1:
-            ids = self._greedy(frames, src_mask)
+            ids = self._greedy(inputs, src_mask)
         else:
-            ids = self._beam_search(frames, src_mask, beam_size)
+            ids = self._beam_search(inputs, src_mask, beam_size)
         return self.vocab.decode(ids)
 
     @torch.no_grad()
-    def _greedy(self, frames, src_mask) -> List[int]:
-        memory  = self.model.encode(frames, src_mask)
+    def _greedy(self, inputs, src_mask) -> List[int]:
+        memory  = self._encode_inputs(inputs, src_mask)
         sos, eos = self.vocab.sos_idx, self.vocab.eos_idx
         generated = [sos]
         for _ in range(self.cfg.model.max_target_len):
@@ -137,8 +165,8 @@ class SLRPredictor:
         return generated
 
     @torch.no_grad()
-    def _beam_search(self, frames, src_mask, beam_size: int = 4) -> List[int]:
-        memory  = self.model.encode(frames, src_mask)
+    def _beam_search(self, inputs, src_mask, beam_size: int = 4) -> List[int]:
+        memory  = self._encode_inputs(inputs, src_mask)
         sos, eos = self.vocab.sos_idx, self.vocab.eos_idx
         beams, completed = [(0.0, [sos])], []
 
@@ -180,3 +208,73 @@ class SLRPredictor:
         frames   = frames.unsqueeze(0).to(self.device)    # (1, T, 3, H, W)
         src_mask = src_mask.unsqueeze(0).to(self.device)  # (1, T)
         return frames, src_mask
+
+    def _load_feature_tensor(self, feature_path: str):
+        payload = self._safe_torch_load(feature_path)
+        if isinstance(payload, dict):
+            for key in ("features", "x", "input", "frames"):
+                if key in payload and torch.is_tensor(payload[key]):
+                    payload = payload[key]
+                    break
+
+        if not torch.is_tensor(payload):
+            raise TypeError(f"Unsupported feature tensor payload in {feature_path}")
+
+        feats = payload.detach().float()
+        if feats.ndim == 2:
+            feats = feats.unsqueeze(0)  # (1, T, D)
+        elif feats.ndim != 3:
+            raise ValueError(f"Expected feature tensor with 2 or 3 dims, got shape={tuple(feats.shape)}")
+
+        if feats.size(0) != 1:
+            raise ValueError(f"Expected a single sample in feature file, got batch={feats.size(0)}")
+
+        src_mask = torch.zeros(feats.size(0), feats.size(1), dtype=torch.bool)
+        return feats.to(self.device), src_mask.to(self.device)
+
+    def _encode_inputs(self, inputs: torch.Tensor, src_mask: torch.Tensor) -> torch.Tensor:
+        if inputs.ndim == 5:
+            return self.model.encode(inputs, src_mask)
+        if inputs.ndim == 3:
+            expected_dim = self.model.temporal_encoder.input_proj.in_features
+            got_dim = int(inputs.size(-1))
+            if got_dim != expected_dim:
+                raise ValueError(
+                    f"Feature dimension mismatch: checkpoint expects D={expected_dim}, "
+                    f"but input feature tensor has D={got_dim}. "
+                    f"Use a checkpoint trained with matching features."
+                )
+            return self.model.temporal_encoder(inputs, src_key_padding_mask=src_mask)
+        raise ValueError(f"Unsupported input tensor shape: {tuple(inputs.shape)}")
+
+    @staticmethod
+    def _safe_torch_load(path: str):
+        try:
+            return torch.load(path, map_location="cpu", weights_only=True)
+        except TypeError:
+            return torch.load(path, map_location="cpu")
+
+    @staticmethod
+    def _extract_model_state(state):
+        if isinstance(state, dict) and "model_state" in state:
+            return state["model_state"]
+        if isinstance(state, dict):
+            return state
+        raise TypeError("Checkpoint must be a dict containing model weights")
+
+    @staticmethod
+    def _upgrade_legacy_state_dict(model_state: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        upgraded = {}
+        for key, value in model_state.items():
+            if key.startswith("encoder."):
+                upgraded[f"temporal_encoder.{key[len('encoder.') :]}"] = value
+            else:
+                upgraded[key] = value
+        return upgraded
+
+    @staticmethod
+    def _infer_temporal_input_dim(model_state: Dict[str, torch.Tensor]) -> Optional[int]:
+        weight = model_state.get("temporal_encoder.input_proj.weight")
+        if torch.is_tensor(weight) and weight.ndim == 2:
+            return int(weight.size(1))
+        return None

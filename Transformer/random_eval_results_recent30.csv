@@ -1,0 +1,31 @@
+idd,reference,prediction,wer,exact_match,status
+727,Ora daxilində saxta sənəd göz yumulur,hər gün çox sevmək,1.0000,0,success
+116,Kondisoner söndurmək bilmək siz ?,mən bu məsələ,1.0000,0,success
+27,Mən əvvəl mərkəz yaşamaq amma indi 3 rayon yaşamaq,mən bu gün siz ?,0.8889,0,success
+283,Mənim ləqəb yox,mənim pensiya var,0.6667,0,success
+252,Mənim pasport yoxdur,mənim pensiya var,0.6667,0,success
+230,Mənim problem həll olmaq,mən bu almaq olmaq istəmək,1.0000,0,success
+144,Mən qan təziq var,mənim dərs dərs var,0.7500,0,success
+106,Siz məni görmək ?,mən bu gün siz ?,1.0000,0,success
+631,Kim mahnı söz düz yazmaq ona hədiyyə alaq vermək,bu tapşırıq tapşırıq tapşırıq tapşırıq etmək,1.0000,0,success
+91,Mən telefon özüm deyil,mən dost olmaq istəmək,0.7500,0,success
+677,Mən həmin söz demək lazım deyil söhbət bağlamaq,mən bu gün mənim pensiya var,0.8750,0,success
+434,Hansı tarix hüquq başlamaq ?,mən uşaq uşaq doğulmaq,1.0000,0,success
+34,Siz günorta sonra burda olmaq ?,mən bu gün siz ?,0.8333,0,success
+32,Mən siz başa düşmək yox,mən bu gün siz ?,0.8000,0,success
+97,Pəncərə açmaq bilmək siz ?,siz görmək ?,0.8000,0,success
+225,Mən həkim yoxlamaq getmək istəmək,mən növbəti növbəti növbəti növbəti növbəti ?,1.2000,0,success
+240,Mən polis müraciət etmək olacaq,mən bu almaq istəmək,0.8000,0,success
+590,Sənin göz dəniz mavi rəng oxşamaq,hər gün çox sevmək,1.0000,0,success
+689,İş bitirmək sonra bank kart sifariş vermək,o sənəd lazım,1.0000,0,success
+29,Mən burdan çıxmaq 28 may getmək,mən getmək bilmək ?,0.8333,0,success
+647,Sən kim mən belə sual vermək ?,mən bu gün çox sevmək,0.8571,0,success
+205,Əlil adam müxtəlif bacarıq olmaq,mən bu almaq olmaq istəmək,1.0000,0,success
+738,Sus baş ağrıyır,hər gün çox sevmək,1.3333,0,success
+431,Siz göstərmək şeir bəyənmək ?,bu məsələ bağlı bağlı bağlı bağlı bağlı ?,1.4000,0,success
+227,Mən özüm yaxşı hiss etmək,mən bu almaq olmaq istəmək,0.8000,0,success
+461,Dövlət icbari şəxsi sığorta nə ?,mən dost mərkəz istəmək,1.0000,0,success
+676,"Qız çalışmaq ki, saç kəsmək usta olmaq",hər gün çox sevmək,1.0000,0,success
+286,O mən cavab vermek yox,mənim pensiya var,1.0000,0,success
+8,Mən subay,mən subay,0.0000,1,success
+165,Mənim sabah 11:15 dərs var,mənim dərs dərs dərs var,0.4000,0,success

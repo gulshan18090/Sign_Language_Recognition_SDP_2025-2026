@@ -1,0 +1,11 @@
+idd,reference,prediction,wer,exact_match,status
+727,Ora daxilində saxta sənəd göz yumulur,hər gün çox sevmək,1.0000,0,success
+116,Kondisoner söndurmək bilmək siz ?,mən bu məsələ,1.0000,0,success
+27,Mən əvvəl mərkəz yaşamaq amma indi 3 rayon yaşamaq,mən bu gün siz ?,0.8889,0,success
+283,Mənim ləqəb yox,mənim pensiya var,0.6667,0,success
+252,Mənim pasport yoxdur,mənim pensiya var,0.6667,0,success
+230,Mənim problem həll olmaq,mən bu almaq olmaq istəmək,1.0000,0,success
+144,Mən qan təziq var,mənim dərs dərs var,0.7500,0,success
+106,Siz məni görmək ?,mən bu gün siz ?,1.0000,0,success
+631,Kim mahnı söz düz yazmaq ona hədiyyə alaq vermək,bu tapşırıq tapşırıq tapşırıq tapşırıq etmək,1.0000,0,success
+91,Mən telefon özüm deyil,mən dost olmaq istəmək,0.7500,0,success
