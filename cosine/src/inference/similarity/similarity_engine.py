@@ -6,7 +6,7 @@ Computes similarity scores between video feature matrices using various methods.
 
 import numpy as np
 from typing import Dict, List, Tuple, Optional, Callable
-from scipy.spatial.distance import cosine, euclidean
+from scipy.spatial.distance import euclidean
 from scipy.stats import pearsonr, spearmanr
 from enum import Enum
 
@@ -75,6 +75,24 @@ class SimilarityEngine:
             Flattened vector of shape (n_frames * n_features,)
         """
         return matrix.flatten()
+
+    @staticmethod
+    def _normalize_rows(mat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Return (unit_rows, norms). Zero rows remain zeros (DTW-consistent)."""
+        norms = np.linalg.norm(mat, axis=1)
+        unit = mat.copy()
+        nz = norms > 0
+        unit[nz] = unit[nz] / norms[nz, None]
+        return unit, norms
+
+    @staticmethod
+    def _clamp_cos_sim(value: float) -> float:
+        # Clamp minor FP drift to keep within [-1, 1]
+        if value > 1.0:
+            return 1.0
+        if value < -1.0:
+            return -1.0
+        return value
     
     def _cosine_similarity(
         self, 
@@ -94,18 +112,17 @@ class SimilarityEngine:
         Returns:
             Cosine similarity score
         """
-        vec_a = self.flatten_matrix(matrix_a)
-        vec_b = self.flatten_matrix(matrix_b)
-        
-        # Handle zero vectors
-        norm_a = np.linalg.norm(vec_a)
-        norm_b = np.linalg.norm(vec_b)
-        
-        if norm_a == 0 or norm_b == 0:
+        vec_a = self.flatten_matrix(matrix_a).astype(np.float32, copy=False)
+        vec_b = self.flatten_matrix(matrix_b).astype(np.float32, copy=False)
+
+        norm_a = float(np.linalg.norm(vec_a))
+        norm_b = float(np.linalg.norm(vec_b))
+        if norm_a == 0.0 or norm_b == 0.0:
             return 0.0
-        
-        similarity = 1 - cosine(vec_a, vec_b)
-        return float(similarity)
+
+        sim = float(np.dot(vec_a / norm_a, vec_b / norm_b))
+        sim = self._clamp_cos_sim(sim)
+        return sim
     
     def _euclidean_similarity(
         self, 
@@ -225,20 +242,14 @@ class SimilarityEngine:
         if matrix_a.shape != matrix_b.shape:
             raise ValueError("Matrices must have the same shape for frame-wise comparison")
         
-        n_frames = matrix_a.shape[0]
-        similarities = []
-        
-        for i in range(n_frames):
-            norm_a = np.linalg.norm(matrix_a[i])
-            norm_b = np.linalg.norm(matrix_b[i])
-            
-            if norm_a == 0 or norm_b == 0:
-                similarities.append(0.0)
-            else:
-                sim = 1 - cosine(matrix_a[i], matrix_b[i])
-                similarities.append(sim)
-        
-        return float(np.mean(similarities))
+        a_u, a_norms = self._normalize_rows(matrix_a.astype(np.float32, copy=False))
+        b_u, b_norms = self._normalize_rows(matrix_b.astype(np.float32, copy=False))
+
+        sims = np.sum(a_u * b_u, axis=1)
+        valid = (a_norms > 0) & (b_norms > 0)
+        sims = np.where(valid, sims, 0.0)
+        sims = np.clip(sims, -1.0, 1.0)
+        return float(np.mean(sims))
     
     def _temporal_correlation(
         self, 
@@ -289,13 +300,17 @@ class SimilarityEngine:
         Returns:
             Distance value (0 = identical, higher = more different)
         """
-        norm_a = np.linalg.norm(frame_a)
-        norm_b = np.linalg.norm(frame_b)
-        
-        if norm_a == 0 or norm_b == 0:
+        frame_a = frame_a.astype(np.float32, copy=False)
+        frame_b = frame_b.astype(np.float32, copy=False)
+
+        norm_a = float(np.linalg.norm(frame_a))
+        norm_b = float(np.linalg.norm(frame_b))
+        if norm_a == 0.0 or norm_b == 0.0:
             return 1.0  # Maximum distance if either is zero
-        
-        return cosine(frame_a, frame_b)
+
+        cos_sim = float(np.dot(frame_a / norm_a, frame_b / norm_b))
+        cos_sim = self._clamp_cos_sim(cos_sim)
+        return 1.0 - cos_sim
     
     def _dtw_with_sakoe_chiba(
         self,
